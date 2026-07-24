@@ -28,10 +28,16 @@
                 </div>
                 <div>
                     <label class="block text-xs text-slate-400 mb-1">Access duration</label>
-                    <select name="duration_minutes" required class="w-full bg-slate-800 border border-slate-700 rounded-lg p-2.5 text-white text-sm focus:outline-none focus:border-indigo-500">
-                        <option value="30">30 minutes</option><option value="60" selected>1 hour</option><option value="120">2 hours</option><option value="360">6 hours</option><option value="720">12 hours</option><option value="1440">1 day</option><option value="2880">2 days</option><option value="10080">7 days</option><option value="43200">30 days</option>
-                    </select>
-                    <p class="mt-1 text-[10px] text-slate-500">Choose a simple duration; expiry is calculated automatically.</p>
+                    <div class="grid grid-cols-2 gap-3">
+                        <input type="number" name="duration_value" min="1" max="999" value="{{ old('duration_value', 1) }}" required aria-label="Duration number" class="w-full bg-slate-800 border border-slate-700 rounded-lg p-2.5 text-white text-sm focus:outline-none focus:border-indigo-500">
+                        <select name="duration_unit" required aria-label="Duration unit" class="w-full bg-slate-800 border border-slate-700 rounded-lg p-2.5 text-white text-sm focus:outline-none focus:border-indigo-500">
+                            <option value="minutes" @selected(old('duration_unit') === 'minutes')>Minutes</option>
+                            <option value="hours" @selected(old('duration_unit', 'hours') === 'hours')>Hours</option>
+                            <option value="days" @selected(old('duration_unit') === 'days')>Days</option>
+                            <option value="months" @selected(old('duration_unit') === 'months')>Months</option>
+                        </select>
+                    </div>
+                    <p class="mt-1 text-[10px] text-slate-500">For example: enter 1 and select Hours, Days, or Months. One month is calculated as 30 days.</p>
                 </div>
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>

@@ -1,6 +1,7 @@
 <?php
 
 use Illuminate\Support\Facades\Route;
+
 use App\Http\Controllers\Admin\AdminController;
 use App\Http\Controllers\Auth\AuthController;
 use App\Http\Controllers\Customer\CustomerPortalController;
@@ -17,6 +18,7 @@ Route::post('/logout', [AuthController::class, 'logout'])->middleware('auth')->n
 // Public customer hotspot portal.
 Route::prefix('h')->group(function () {
     Route::get('{slug}', [CustomerPortalController::class, 'showPortal'])->name('customer.portal');
+    Route::get('{slug}/subscription-status', [CustomerPortalController::class, 'showSubscriptionStatus'])->name('customer.subscription-status');
     Route::post('{slug}/checkout', [CustomerPortalController::class, 'checkout'])->middleware('throttle:10,1')->name('customer.checkout');
     Route::get('{slug}/callback', [CustomerPortalController::class, 'paymentCallback'])->name('customer.payment.callback');
     Route::get('{slug}/success', [CustomerPortalController::class, 'showSuccess'])->name('customer.success');

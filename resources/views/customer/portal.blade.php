@@ -30,15 +30,10 @@
                             Expires on: <span class="text-slate-200 font-medium">{{ $customer->expires_at->format('d M Y H:i') }}</span>
                         </p>
                     </div>
-                    <div class="bg-slate-800/80 border border-slate-700 rounded-xl p-3 flex space-x-4">
-                        <div class="text-center">
-                            <p class="text-[10px] text-slate-400 uppercase font-bold">Username</p>
-                            <p class="font-mono text-sm text-indigo-400 font-extrabold">{{ $customer->username }}</p>
-                        </div>
-                        <div class="text-center">
-                            <p class="text-[10px] text-slate-400 uppercase font-bold">Password</p>
-                            <p class="font-mono text-sm text-slate-200 font-extrabold">{{ $customer->password }}</p>
-                        </div>
+                    <div class="bg-slate-800/80 border border-slate-700 rounded-xl p-3 text-center">
+                        <p class="text-[10px] text-slate-400 uppercase font-bold">Your WiFi voucher</p>
+                        <p class="font-mono text-sm text-indigo-300 font-extrabold">{{ $customer->voucher_code ?? $customer->username }}</p>
+                        <p class="mt-1 text-[9px] text-slate-500">Use the same code in both MikroTik login fields.</p>
                     </div>
                 </div>
             </div>
@@ -118,9 +113,7 @@
 
             <!-- Buy Another Plan / Extend Access -->
             <div class="text-center pt-4">
-                <a href="#packages" onclick="document.getElementById('packages-section').classList.remove('hidden'); this.remove();" class="text-indigo-400 hover:text-indigo-300 text-sm font-bold underline transition">
-                    Want to buy another plan or extend? Click here.
-                </a>
+                <div class="flex flex-col items-center gap-3"><a href="{{ route('customer.subscription-status', $location->slug) }}" class="text-indigo-300 hover:text-indigo-200 text-sm font-bold underline transition">Check remaining subscription time</a><a href="#packages" onclick="document.getElementById('packages-section').classList.remove('hidden'); this.remove();" class="text-indigo-400 hover:text-indigo-300 text-sm font-bold underline transition">Want to buy another plan or extend? Click here.</a></div>
             </div>
         </div>
     @endif

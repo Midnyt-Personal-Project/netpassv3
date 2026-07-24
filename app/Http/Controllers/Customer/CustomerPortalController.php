@@ -2,20 +2,13 @@
 
 namespace App\Http\Controllers\Customer;
 
-use App\Http\Controllers\Controller;
-use App\Models\Announcement;
-use App\Models\Location;
-use App\Models\Package;
-use App\Models\Customer;
-use App\Models\Payment;
-use App\Models\Device;
-use App\Services\PaystackService;
-use App\Services\SmsService;
-use App\Services\MikroTikService;
-use App\Services\OwnerNotificationService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 use Carbon\Carbon;
+
+use App\Http\Controllers\Controller;
+use App\Models\{Announcement, Customer, Device, Location, Package, Payment};
+use App\Services\{MikroTikService, OwnerNotificationService, PaystackService, SmsService};
 
 class CustomerPortalController extends Controller
 {
@@ -53,6 +46,24 @@ class CustomerPortalController extends Controller
             ->orderByDesc('priority')->oldest()->get();
 
         return view('customer.portal', compact('location', 'packages', 'customer', 'announcements'));
+    }
+
+    /** Public voucher lookup page. It returns only the status for the voucher's own location. */
+    public function showSubscriptionStatus(string $slug, Request $request)
+    {
+        $location = Location::where('slug', $slug)->where('status', 'active')->firstOrFail();
+        $customer = null;
+
+        if ($request->filled('voucher')) {
+            $voucher = strtoupper(trim($request->string('voucher')->toString()));
+            $customer = Customer::where('location_id', $location->id)->where('voucher_code', $voucher)->first();
+
+            if (!$customer) {
+                return back()->withInput()->with('error', 'Voucher not found for this location.');
+            }
+        }
+
+        return view('customer.subscription-status', compact('location', 'customer'));
     }
 
     /**
@@ -154,15 +165,14 @@ class CustomerPortalController extends Controller
                                 ->first();
 
             if (!$customer) {
-                // Generate username e.g. OY100234
-                $lastId = Customer::max('id') ?: 100000;
-                $username = 'OY' . ($lastId + rand(1, 999));
-                $password = rand(1000, 9999);
+                // One voucher is used as both MikroTik username and password.
+                $voucher = $this->uniqueVoucher();
 
                 $customer = Customer::create([
                     'location_id' => $location->id,
-                    'username' => $username,
-                    'password' => $password,
+                    'username' => $voucher,
+                    'password' => $voucher,
+                    'voucher_code' => $voucher,
                     'phone_number' => $phone,
                     'active_package_id' => $package->id,
                     'expires_at' => Carbon::now()->addMinutes($package->duration_minutes),
@@ -310,5 +320,14 @@ class CustomerPortalController extends Controller
         $device->delete();
 
         return back()->with('success', 'Device removed successfully. Router will sync the removal.');
+    }
+
+    private function uniqueVoucher(): string
+    {
+        do {
+            $voucher = 'OY-'.strtoupper(Str::random(8));
+        } while (Customer::where('voucher_code', $voucher)->exists());
+
+        return $voucher;
     }
 }

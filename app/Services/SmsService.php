@@ -67,7 +67,8 @@ class SmsService
     public function sendCredentials(Customer $customer, string $packageName)
     {
         $expiryDate = $customer->expires_at ? $customer->expires_at->format('d M Y H:i') : 'Unlimited';
-        $message = "Welcome to Oyalo WiFi!\n\nYour hotspot credentials:\nUsername: {$customer->username}\nPassword: {$customer->password}\nPackage: {$packageName}\nExpires: {$expiryDate}\n\nEnjoy fast internet!";
+        $voucher = $customer->voucher_code ?: $customer->username;
+        $message = "Welcome to Oyalo WiFi!\n\nYour WiFi voucher: {$voucher}\nUse this same voucher in both MikroTik username and password fields.\nPackage: {$packageName}\nExpires: {$expiryDate}\n\nEnjoy fast internet!";
 
         return $this->sendSms($customer->phone_number, $message, $customer);
     }

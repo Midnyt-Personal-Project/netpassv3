@@ -2,20 +2,14 @@
 
 namespace App\Http\Controllers\Admin;
 
-use App\Http\Controllers\Controller;
-use App\Models\Announcement;
-use App\Models\Customer;
-use App\Models\Device;
-use App\Models\Location;
-use App\Models\Package;
-use App\Models\Payment;
-use App\Services\MikroTikService;
-use App\Services\OwnerNotificationService;
-use App\Services\SmsService;
-use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Str;
+use Carbon\Carbon;
+
+use App\Http\Controllers\Controller;
+use App\Models\{Announcement, Customer, Device, Location, Package, Payment};
+use App\Services\{MikroTikService, OwnerNotificationService, SmsService};
 
 class AdminController extends Controller
 {
@@ -72,12 +66,18 @@ class AdminController extends Controller
             'location_id' => 'required|integer|exists:locations,id',
             'name' => 'required|string|max:100',
             'price' => 'required|numeric|min:0',
-            'duration_minutes' => 'required|integer|min:1',
+            'duration_value' => 'required|integer|min:1|max:999',
+            'duration_unit' => 'required|in:minutes,hours,days,months',
             'speed_limit_up' => 'nullable|string|max:30',
             'speed_limit_down' => 'nullable|string|max:30',
             'data_limit_mb' => 'nullable|integer|min:1',
         ]);
         $this->ensureManagedLocation((int) $data['location_id']);
+
+        // A month is treated as 30 days for a predictable hotspot expiry time.
+        $multiplier = ['minutes' => 1, 'hours' => 60, 'days' => 1440, 'months' => 43200][$data['duration_unit']];
+        $data['duration_minutes'] = $data['duration_value'] * $multiplier;
+        unset($data['duration_value'], $data['duration_unit']);
         Package::create($data);
 
         return back()->with('success', 'Package created successfully.');
@@ -172,7 +172,6 @@ class AdminController extends Controller
             'location_id' => 'required|integer|exists:locations,id',
             'package_id' => 'required|integer|exists:packages,id',
             'phone_number' => 'required|string|max:30',
-            'username' => 'nullable|string|max:50',
             'device_name' => 'nullable|required_with:mac_address|string|max:50',
             'mac_address' => ['nullable', 'required_with:device_name', 'string', 'regex:/^([0-9A-Fa-f]{2}[:-]){5}[0-9A-Fa-f]{2}$/'],
         ]);
@@ -181,12 +180,13 @@ class AdminController extends Controller
         $customer = Customer::where('location_id', $location->id)->where('phone_number', $data['phone_number'])->first();
 
         if (!$customer) {
-            $username = $data['username'] ?: $this->uniqueUsername();
-            abort_if(Customer::where('username', $username)->exists(), 422, 'That username is already in use.');
+            $voucher = $this->uniqueVoucher();
             $customer = Customer::create([
                 'location_id' => $location->id,
-                'username' => $username,
-                'password' => (string) random_int(1000, 9999),
+                // MikroTik receives the voucher in both credential fields.
+                'username' => $voucher,
+                'password' => $voucher,
+                'voucher_code' => $voucher,
                 'phone_number' => $data['phone_number'],
                 'status' => 'active',
             ]);
@@ -231,12 +231,12 @@ class AdminController extends Controller
         return back()->with('success', "Subscription created for {$customer->username} through {$customer->expires_at->format('M j, Y g:i A')}.");
     }
 
-    private function uniqueUsername(): string
+    private function uniqueVoucher(): string
     {
         do {
-            $username = 'OY'.random_int(100000, 999999);
-        } while (Customer::where('username', $username)->exists());
+            $voucher = 'OY-'.strtoupper(Str::random(8));
+        } while (Customer::where('voucher_code', $voucher)->exists());
 
-        return $username;
+        return $voucher;
     }
 }

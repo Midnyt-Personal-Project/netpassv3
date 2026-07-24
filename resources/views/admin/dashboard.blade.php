@@ -74,7 +74,7 @@
                 <table class="w-full text-left border-collapse">
                     <thead>
                         <tr class="border-b border-slate-800 text-slate-400 text-xs uppercase font-semibold">
-                            <th class="pb-3">Hotspot ID</th>
+                            <th class="pb-3">Voucher</th>
                             <th class="pb-3">Phone</th>
                             <th class="pb-3">Package</th>
                             <th class="pb-3">Expires At</th>
@@ -84,7 +84,7 @@
                     <tbody class="divide-y divide-slate-800/50 text-sm">
                         @forelse($customers as $cust)
                             <tr>
-                                <td class="py-3 font-mono text-indigo-400 font-semibold text-xs">{{ $cust->username }}</td>
+                                <td class="py-3 font-mono text-indigo-400 font-semibold text-xs">{{ $cust->voucher_code ?? $cust->username }}</td>
                                 <td class="py-3 text-slate-300">{{ $cust->phone_number }}</td>
                                 <td class="py-3 text-white">{{ $cust->activePackage ? $cust->activePackage->name : 'N/A' }}</td>
                                 <td class="py-3 text-slate-400 text-xs">{{ $cust->expires_at ? $cust->expires_at->format('d M H:i') : 'Unlimited' }}</td>
