@@ -7,6 +7,7 @@ use Illuminate\Support\Facades\Auth;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
+use App\Services\ActivityLogger;
 
 class AuthController extends Controller
 {
@@ -48,6 +49,7 @@ class AuthController extends Controller
             }
 
             $request->session()->regenerate();
+            app(ActivityLogger::class)->record('auth.login', "{$user->email} signed in.", $user->id, $request->ip());
 
             return $this->redirectFor($user);
         }
@@ -62,6 +64,9 @@ class AuthController extends Controller
      */
     public function logout(Request $request)
     {
+        if ($user = Auth::user()) {
+            app(ActivityLogger::class)->record('auth.logout', "{$user->email} signed out.", $user->id, $request->ip());
+        }
         Auth::logout();
         $request->session()->invalidate();
         $request->session()->regenerateToken();

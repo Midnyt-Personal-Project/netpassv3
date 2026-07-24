@@ -42,6 +42,7 @@ Route::prefix('admin')->middleware(['auth', 'role:admin,super_admin'])->group(fu
     Route::get('devices', [AdminController::class, 'showDevices'])->name('admin.devices');
     Route::post('devices/{id}/toggle', [AdminController::class, 'toggleDeviceStatus'])->name('admin.devices.toggle');
     Route::get('announcements', [AdminController::class, 'showAnnouncements'])->name('admin.announcements');
+    Route::get('logs', [AdminController::class, 'showLogs'])->name('admin.logs');
     Route::post('announcements', [AdminController::class, 'createAnnouncement'])->name('admin.announcements.create');
     Route::get('subscriptions', [AdminController::class, 'showSubscriptions'])->name('admin.subscriptions');
     Route::post('subscriptions/create', [AdminController::class, 'createSubscription'])->name('admin.subscriptions.create');

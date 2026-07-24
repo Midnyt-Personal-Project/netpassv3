@@ -8,7 +8,7 @@ use Carbon\Carbon;
 
 use App\Http\Controllers\Controller;
 use App\Models\{Announcement, Customer, Device, Location, Package, Payment};
-use App\Services\{MikroTikService, OwnerNotificationService, PaystackService, SmsService};
+use App\Services\{ActivityLogger, MikroTikService, OwnerNotificationService, PaystackService, SmsService};
 
 class CustomerPortalController extends Controller
 {
@@ -221,6 +221,7 @@ class CustomerPortalController extends Controller
             // Send credentials and optionally notify the location owner by email.
             $this->sms->sendCredentials($customer, $package->name);
             $this->ownerNotifications->subscriptionCreated($location->loadMissing('admin'), $customer, $package, $payment->fresh());
+            app(ActivityLogger::class)->record('payment.completed', "Online subscription {$payment->paystack_reference} completed for voucher {$customer->voucher_code} at {$location->name}.", null, $request->ip());
 
             // Clear pending session data
             session()->forget(['pending_payment_phone', 'pending_payment_mac', 'pending_payment_device_name']);

@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Router;
 use App\Models\RouterCommand;
+use App\Services\ActivityLogger;
 use Illuminate\Http\Request;
 
 class ApiController extends Controller
@@ -33,7 +34,11 @@ class ApiController extends Controller
         }
 
         $data = $request->validate(['model' => ['nullable', 'string', 'max:100']]);
+        $wasOffline = $router->status !== 'online';
         $router->update(['last_heartbeat' => now(), 'status' => 'online', 'model' => $data['model'] ?? $router->model]);
+        if ($wasOffline) {
+            app(ActivityLogger::class)->record('router.online', "Router {$router->router_id} checked in and is online.", null, $request->ip());
+        }
 
         return response()->json(['status' => 'success', 'message' => 'Heartbeat acknowledged', 'timestamp' => now()->toIso8601String()]);
     }
@@ -75,6 +80,7 @@ class ApiController extends Controller
         }
 
         $command->update(['status' => $data['status'], 'executed_at' => now()]);
+        app(ActivityLogger::class)->record('router.command_acknowledged', "Router {$router->router_id} marked command {$command->id} ({$command->command_type}) as {$data['status']}.", null, $request->ip());
 
         return response()->json(['status' => 'success', 'message' => "Command {$commandId} status updated to {$data['status']}"]);
     }

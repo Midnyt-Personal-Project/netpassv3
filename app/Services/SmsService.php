@@ -8,8 +8,8 @@ use App\Models\{Customer, SmsLog};
 
 class SmsService
 {
-    protected $apiKey;
-    protected $senderId;
+    protected ?string $apiKey;
+    protected string $senderId;
 
     public function __construct()
     {
@@ -17,13 +17,14 @@ class SmsService
         $this->senderId = env('ARKESEL_SMS_SENDER_ID');
     }
 
-    /**
-     * Send credentials and details to customer via Arkesel (or equivalent West African SMS Gateway).
-     */
-    public function sendSms(string $phoneNumber, string $message, ?Customer $customer = null)
+    /** Send an SMS through Arkesel and always save the actual outcome for the owner. */
+    public function sendSms(string $phoneNumber, string $message, ?Customer $customer = null): bool
     {
-        // Sanitize phone number (e.g. convert 024... to +23324... or 23324...)
         $formattedPhone = $this->formatPhoneNumber($phoneNumber);
+
+        if (blank($this->apiKey)) {
+            return $this->logFailure($formattedPhone, $message, $customer, 'ARKESEL_SMS_API_KEY is not configured.');
+        }
 
         try {
             // Simulated Arkesel API request
@@ -49,22 +50,20 @@ class SmsService
 
             Log::info("SMS Sent to {$formattedPhone}: {$message}");
             return true;
-        } catch (\Exception $e) {
-            Log::error('SMS Service Exception: ' . $e->getMessage());
-            SmsLog::create([
-                'customer_id' => $customer ? $customer->id : null,
-                'phone_number' => $formattedPhone,
-                'message' => $message,
-                'status' => 'failed',
-            ]);
-            return false;
+        } catch (\Throwable $exception) {
+            return $this->logFailure($formattedPhone, $message, $customer, $exception->getMessage());
         }
     }
 
-    /**
-     * Send credential details to hot-spot user.
-     */
-    public function sendCredentials(Customer $customer, string $packageName)
+    private function logFailure(string $phoneNumber, string $message, ?Customer $customer, string $reason): bool
+    {
+        Log::error("SMS delivery failed for {$phoneNumber}: {$reason}");
+        SmsLog::create(['customer_id' => $customer?->id, 'phone_number' => $phoneNumber, 'message' => $message, 'status' => 'failed', 'error_message' => $reason]);
+
+        return false;
+    }
+
+    public function sendCredentials(Customer $customer, string $packageName): bool
     {
         $expiryDate = $customer->expires_at ? $customer->expires_at->format('d M Y H:i') : 'Unlimited';
         $voucher = $customer->voucher_code ?: $customer->username;
@@ -73,25 +72,15 @@ class SmsService
         return $this->sendSms($customer->phone_number, $message, $customer);
     }
 
-    /**
-     * Send expiration warning.
-     */
-    public function sendExpiryNotification(Customer $customer)
+    public function sendExpiryNotification(Customer $customer): bool
     {
-        $message = "Hello, your Oyalo WiFi package has expired. Open your browser and connect to renew your internet access.";
-        return $this->sendSms($customer->phone_number, $message, $customer);
+        return $this->sendSms($customer->phone_number, 'Hello, your Oyalo WiFi package has expired. Open your browser and connect to renew your internet access.', $customer);
     }
 
-    /**
-     * Helper to format numbers for Ghana (+233 / 233)
-     */
-    protected function formatPhoneNumber(string $phone)
+    protected function formatPhoneNumber(string $phone): string
     {
         $phone = preg_replace('/\s+/', '', $phone);
-        // If it starts with 0 and has 10 digits, replace with 233
-        if (preg_match('/^0[0-9]{9}$/', $phone)) {
-            return '233' . substr($phone, 1);
-        }
-        return $phone;
+
+        return preg_match('/^0[0-9]{9}$/', $phone) ? '233'.substr($phone, 1) : $phone;
     }
 }

@@ -7,6 +7,7 @@ use App\Models\User;
 use App\Models\Location;
 use App\Models\Router;
 use App\Models\Payment;
+use App\Services\ActivityLogger;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
@@ -49,13 +50,15 @@ class SuperAdminController extends Controller
             'password' => 'required|min:6',
         ]);
 
-        User::create([
+        $admin = User::create([
             'name' => $request->name,
             'email' => $request->email,
             'password' => Hash::make($request->password),
             'role' => 'admin',
             'status' => 'active'
         ]);
+
+        app(ActivityLogger::class)->record('admin.created', "Created admin account {$admin->email}.");
 
         return back()->with('success', 'Admin account created successfully.');
     }
@@ -73,7 +76,7 @@ class SuperAdminController extends Controller
         // Locations can only belong to business-admin accounts.
         User::whereKey($request->admin_id)->where('role', 'admin')->firstOrFail();
 
-        Location::create([
+        $location = Location::create([
             'admin_id' => $request->admin_id,
             'name' => $request->name,
             'slug' => Str::slug($request->name),
@@ -82,6 +85,8 @@ class SuperAdminController extends Controller
             'subscription_email_notifications' => $request->boolean('subscription_email_notifications'),
             'status' => 'active',
         ]);
+
+        app(ActivityLogger::class)->record('location.created', "Created location {$location->name}.");
 
         return back()->with('success', 'Location created successfully.');
     }
@@ -97,13 +102,15 @@ class SuperAdminController extends Controller
         $routerId = 'RTR-' . rand(100000, 999999);
         $token = 'oyalo_' . Str::random(32);
 
-        Router::create([
+        $router = Router::create([
             'location_id' => $request->location_id,
             'router_id' => $routerId,
             'api_token' => $token,
             'name' => $request->name,
             'status' => 'offline'
         ]);
+
+        app(ActivityLogger::class)->record('router.created', "Created router {$router->router_id} for location ID {$router->location_id}.");
 
         return back()->with('success', 'Router created successfully. Generated Token: ' . $token);
     }
@@ -113,6 +120,7 @@ class SuperAdminController extends Controller
         $admin = User::whereKey($id)->where('role', 'admin')->firstOrFail();
         $admin->status = $admin->status === 'active' ? 'suspended' : 'active';
         $admin->save();
+        app(ActivityLogger::class)->record('admin.status_changed', "Admin {$admin->email} is now {$admin->status}.");
 
         return back()->with('success', "Admin status updated to {$admin->status}.");
     }
