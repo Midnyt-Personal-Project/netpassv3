@@ -10,14 +10,14 @@ Route::view('/', 'welcome')->name('home');
 
 Route::middleware('guest')->group(function () {
     Route::get('/login', [AuthController::class, 'showLogin'])->name('login');
-    Route::post('/login', [AuthController::class, 'login'])->name('login.attempt');
+    Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:5,1')->name('login.attempt');
 });
 Route::post('/logout', [AuthController::class, 'logout'])->middleware('auth')->name('logout');
 
 // Public customer hotspot portal.
 Route::prefix('h')->group(function () {
     Route::get('{slug}', [CustomerPortalController::class, 'showPortal'])->name('customer.portal');
-    Route::post('{slug}/checkout', [CustomerPortalController::class, 'checkout'])->name('customer.checkout');
+    Route::post('{slug}/checkout', [CustomerPortalController::class, 'checkout'])->middleware('throttle:10,1')->name('customer.checkout');
     Route::get('{slug}/callback', [CustomerPortalController::class, 'paymentCallback'])->name('customer.payment.callback');
     Route::get('{slug}/success', [CustomerPortalController::class, 'showSuccess'])->name('customer.success');
     Route::post('{slug}/device/register', [CustomerPortalController::class, 'registerDevice'])->name('customer.device.register');

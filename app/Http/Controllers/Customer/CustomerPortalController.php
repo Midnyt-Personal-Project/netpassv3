@@ -36,8 +36,8 @@ class CustomerPortalController extends Controller
         $location = Location::where('slug', $slug)->where('status', 'active')->firstOrFail();
         $packages = $location->packages;
 
-        // Check if customer is already logged in (via cookie or request parameter)
-        $username = $request->cookie('oyalo_customer_username') ?: $request->input('username');
+        // The cookie is encrypted and only issued after a verified payment. Do not trust a username in the URL.
+        $username = $request->cookie('oyalo_customer_username');
         $customer = null;
 
         if ($username) {
@@ -241,6 +241,7 @@ class CustomerPortalController extends Controller
         $customer = Customer::where('username', $request->username)
                             ->where('location_id', $location->id)
                             ->firstOrFail();
+        abort_unless(hash_equals((string) $customer->username, (string) $request->cookie('oyalo_customer_username')), 403);
 
         if ($customer->isExpired()) {
             return back()->with('error', 'You must have an active package to register device MAC addresses.');
@@ -286,7 +287,7 @@ class CustomerPortalController extends Controller
         $device = Device::findOrFail($deviceId);
         $customer = $device->customer;
 
-        if ($customer->location_id !== $location->id) {
+        if ($customer->location_id !== $location->id || !hash_equals((string) $customer->username, (string) $request->cookie('oyalo_customer_username'))) {
             abort(403);
         }
 
