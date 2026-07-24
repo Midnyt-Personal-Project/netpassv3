@@ -29,14 +29,14 @@ class SmsService
             // Simulated Arkesel API request
             // In production, uncomment the Http::get or Http::post request
             
-            $response = Http::get('https://sms.arkesel.com/sms/api', [
-                'action' => 'send-sms',
-                'api_key' => $this->apiKey,
-                'to' => $formattedPhone,
-                'from' => $this->senderId,
-                'sms' => $message
-            ]);
-            $status = $response->successful() ? 'sent' : 'failed';
+            // $response = Http::get('https://sms.arkesel.com/sms/api', [
+            //     'action' => 'send-sms',
+            //     'api_key' => $this->apiKey,
+            //     'to' => $formattedPhone,
+            //     'from' => $this->senderId,
+            //     'sms' => $message
+            // ]);
+            // $status = $response->successful() ? 'sent' : 'failed';
             
 
             // Log it in SMS logs
