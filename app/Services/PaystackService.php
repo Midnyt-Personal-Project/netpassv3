@@ -1,0 +1,108 @@
+<?php
+
+namespace App\Services;
+
+use App\Models\Location;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
+
+class PaystackService
+{
+    protected $secretKey;
+    protected $baseUrl = 'https://api.paystack.co';
+
+    public function __construct()
+    {
+        $this->secretKey = config('services.paystack.secret_key', env('PAYSTACK_SECRET_KEY', 'sk_test_mock_oyalo_key'));
+    }
+
+    /**
+     * Create a Paystack Subaccount for a Location.
+     * This routes payments directly to the Location owner while taking platform commissions.
+     */
+    public function createSubaccount(string $businessName, string $bankCode, string $accountNumber, float $percentageCharge)
+    {
+        try {
+            $response = Http::withHeaders([
+                'Authorization' => "Bearer {$this->secretKey}",
+                'Content-Type' => 'application/json',
+            ])->post("{$this->baseUrl}/subaccount", [
+                'business_name' => $businessName,
+                'settlement_bank' => $bankCode,
+                'account_number' => $accountNumber,
+                'percentage_charge' => $percentageCharge, // Oyalo platform commission
+            ]);
+
+            if ($response->successful()) {
+                return $response->json()['data']; // Returns subaccount code (e.g. ACCT_xxxxxxxx)
+            }
+
+            Log::error('Paystack Subaccount Creation Failed', [
+                'response' => $response->body()
+            ]);
+            return null;
+        } catch (\Exception $e) {
+            Log::error('Paystack Subaccount Exception: ' . $e->getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * Initialize a Paystack transaction routing split payments to location's subaccount.
+     */
+    public function initializeTransaction(string $email, float $amount, string $reference, string $callbackUrl, string $subaccountCode)
+    {
+        // Paystack amounts are in kobo (GHS 10.00 = 1000)
+        $amountInKobo = round($amount * 100);
+
+        try {
+            $response = Http::withHeaders([
+                'Authorization' => "Bearer {$this->secretKey}",
+                'Content-Type' => 'application/json',
+            ])->post("{$this->baseUrl}/transaction/initialize", [
+                'email' => $email,
+                'amount' => $amountInKobo,
+                'reference' => $reference,
+                'callback_url' => $callbackUrl,
+                'subaccount' => $subaccountCode,
+            ]);
+
+            if ($response->successful()) {
+                return $response->json()['data']; // Returns authorization_url & access_code
+            }
+
+            Log::error('Paystack Initialize Transaction Failed', [
+                'response' => $response->body()
+            ]);
+            return null;
+        } catch (\Exception $e) {
+            Log::error('Paystack Initialize Exception: ' . $e->getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * Verify a transaction on Paystack.
+     */
+    public function verifyTransaction(string $reference)
+    {
+        try {
+            $response = Http::withHeaders([
+                'Authorization' => "Bearer {$this->secretKey}",
+            ])->get("{$this->baseUrl}/transaction/verify/" . urlencode($reference));
+
+            if ($response->successful()) {
+                return $response->json()['data'];
+            }
+
+            Log::error('Paystack Verify Transaction Failed', [
+                'reference' => $reference,
+                'response' => $response->body()
+            ]);
+            return null;
+        } catch (\Exception $e) {
+            Log::error('Paystack Verify Exception: ' . $e->getMessage());
+            return null;
+        }
+    }
+}
