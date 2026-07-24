@@ -173,6 +173,8 @@ class AdminController extends Controller
             'package_id' => 'required|integer|exists:packages,id',
             'phone_number' => 'required|string|max:30',
             'username' => 'nullable|string|max:50',
+            'device_name' => 'nullable|required_with:mac_address|string|max:50',
+            'mac_address' => ['nullable', 'required_with:device_name', 'string', 'regex:/^([0-9A-Fa-f]{2}[:-]){5}[0-9A-Fa-f]{2}$/'],
         ]);
         $location = $this->ensureManagedLocation((int) $data['location_id']);
         $package = Package::whereKey($data['package_id'])->where('location_id', $location->id)->firstOrFail();
@@ -190,6 +192,13 @@ class AdminController extends Controller
             ]);
         }
 
+        $macAddress = null;
+        if (!empty($data['mac_address'])) {
+            $macAddress = strtoupper(str_replace('-', ':', $data['mac_address']));
+            abort_if($customer->devices()->count() >= 3, 422, 'This customer already has the maximum of 3 registered devices.');
+            abort_if(Device::where('mac_address', $macAddress)->exists(), 422, 'This MAC address is already registered to another customer.');
+        }
+
         $start = $customer->expires_at?->isFuture() ? $customer->expires_at : Carbon::now();
         $customer->update(['active_package_id' => $package->id, 'expires_at' => $start->copy()->addMinutes($package->duration_minutes), 'status' => 'active']);
         $payment = Payment::create([
@@ -203,9 +212,18 @@ class AdminController extends Controller
             'paystack_fee' => 0, // This subscription was issued manually, not charged by Paystack.
         ]);
         $router = $location->routers()->where('status', 'online')->first() ?: $location->routers()->first();
+        $customer = $customer->fresh();
         if ($router) {
-            $mikrotik->queueCreateUser($router, $customer->fresh());
+            $mikrotik->queueCreateUser($router, $customer);
         }
+
+        if ($macAddress) {
+            $device = Device::create(['customer_id' => $customer->id, 'mac_address' => $macAddress, 'name' => $data['device_name'], 'status' => 'active']);
+            if ($router) {
+                $mikrotik->queueAddMac($router, $device, $customer);
+            }
+        }
+
         $customer = $customer->fresh();
         $sms->sendCredentials($customer, $package->name);
         $ownerNotifications->subscriptionCreated($location->loadMissing('admin'), $customer, $package, $payment);
