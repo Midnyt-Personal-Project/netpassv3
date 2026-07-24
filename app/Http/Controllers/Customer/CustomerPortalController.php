@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Customer;
 
 use App\Http\Controllers\Controller;
+use App\Models\Announcement;
 use App\Models\Location;
 use App\Models\Package;
 use App\Models\Customer;
@@ -47,7 +48,11 @@ class CustomerPortalController extends Controller
             $customer = Customer::where('username', $username)->where('location_id', $location->id)->first();
         }
 
-        return view('customer.portal', compact('location', 'packages', 'customer'));
+        $announcements = Announcement::visible()
+            ->where(fn ($query) => $query->whereNull('location_id')->orWhere('location_id', $location->id))
+            ->orderByDesc('priority')->oldest()->get();
+
+        return view('customer.portal', compact('location', 'packages', 'customer', 'announcements'));
     }
 
     /**

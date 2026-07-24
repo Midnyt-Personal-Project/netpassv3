@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\Announcement;
 use App\Models\Customer;
 use App\Models\Device;
 use App\Models\Location;
@@ -113,6 +114,44 @@ class AdminController extends Controller
         $location->update(['subscription_email_notifications' => $request->boolean('subscription_email_notifications')]);
 
         return back()->with('success', $location->subscription_email_notifications ? 'Subscription email notifications enabled.' : 'Subscription email notifications disabled.');
+    }
+
+    public function showAnnouncements()
+    {
+        $locations = $this->getAdminLocations();
+        $locationIds = $locations->pluck('id');
+        $announcements = Announcement::with('location')
+            ->where(fn ($query) => $query->whereNull('location_id')->orWhereIn('location_id', $locationIds))
+            ->latest()->take(30)->get();
+
+        return view('admin.announcements', compact('locations', 'announcements'));
+    }
+
+    public function createAnnouncement(Request $request)
+    {
+        $data = $request->validate([
+            'location_id' => 'nullable|integer|exists:locations,id',
+            'title' => 'nullable|string|max:80',
+            'message' => 'required|string|max:240',
+            'priority' => 'nullable|integer|min:0|max:100',
+            'ends_at' => 'nullable|date|after:now',
+        ]);
+
+        // A global ticker is reserved for the super admin; owners can post to their own locations.
+        if (empty($data['location_id'])) {
+            abort_unless(Auth::user()->isSuperAdmin(), 403, 'Only the super admin can publish global news.');
+        } else {
+            $this->ensureManagedLocation((int) $data['location_id']);
+        }
+
+        Announcement::create([
+            ...$data,
+            'created_by' => Auth::id(),
+            'is_active' => true,
+            'priority' => $data['priority'] ?? 0,
+        ]);
+
+        return back()->with('success', empty($data['location_id']) ? 'Global news ticker published.' : 'Location news ticker published.');
     }
 
     public function showSubscriptions()

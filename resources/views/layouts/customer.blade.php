@@ -28,6 +28,10 @@
         /* Large, clearly focused controls work well with remotes and keyboards. */
         button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible { outline: 3px solid #67e8f9; outline-offset: 3px; }
         @media (min-width: 1100px) { body { font-size: 18px; } button, input, select { min-height: 48px; } }
+        .news-track { display: inline-flex; min-width: 100%; width: max-content; animation: news-scroll 32s linear infinite; }
+        .news-track:hover { animation-play-state: paused; }
+        @keyframes news-scroll { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+        @media (prefers-reduced-motion: reduce) { .news-track { animation: none; white-space: normal; width: auto; } }
         /* Custom scrollbar */
         ::-webkit-scrollbar {
             width: 6px;

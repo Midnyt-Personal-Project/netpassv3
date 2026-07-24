@@ -3,6 +3,17 @@
 @section('subtitle', $location->name . ' Location Portal')
 
 @section('content')
+    @if($announcements->isNotEmpty())
+        <section class="mb-5 overflow-hidden rounded-xl border border-indigo-500/30 bg-indigo-500/10 py-3" aria-label="Location news">
+            <div class="news-track whitespace-nowrap text-sm text-indigo-100">
+                @foreach([1, 2] as $repeat)
+                    @foreach($announcements as $announcement)
+                        <span class="inline-flex items-center mx-7"><i class="fa-solid fa-bullhorn text-indigo-300 mr-2"></i>@if($announcement->title)<strong class="mr-2">{{ $announcement->title }}:</strong>@endif {{ $announcement->message }}</span>
+                    @endforeach
+                @endforeach
+            </div>
+        </section>
+    @endif
     @if($customer && !$customer->isExpired())
         <!-- CUSTOMER DASHBOARD - LOGGED IN WITH ACTIVE PLAN -->
         <div class="space-y-6">
