@@ -30,6 +30,8 @@ return [
 
     'paystack' => [
         'secret_key' => env('PAYSTACK_SECRET_KEY'),
+        // Keep this aligned with your Paystack contract; it is used for payout reporting.
+        'fee_percentage' => (float) env('PAYSTACK_FEE_PERCENTAGE', 1.95),
     ],
 
     'slack' => [

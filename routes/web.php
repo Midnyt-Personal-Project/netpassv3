@@ -41,4 +41,5 @@ Route::prefix('admin')->middleware(['auth', 'role:admin,super_admin'])->group(fu
     Route::post('devices/{id}/toggle', [AdminController::class, 'toggleDeviceStatus'])->name('admin.devices.toggle');
     Route::get('subscriptions', [AdminController::class, 'showSubscriptions'])->name('admin.subscriptions');
     Route::post('subscriptions/create', [AdminController::class, 'createSubscription'])->name('admin.subscriptions.create');
+    Route::post('locations/{location}/subscription-notifications', [AdminController::class, 'updateSubscriptionNotifications'])->name('admin.locations.subscription-notifications');
 });

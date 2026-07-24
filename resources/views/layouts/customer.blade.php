@@ -57,6 +57,9 @@
             
             <!-- PWA Back / Menu Button inside Standalone Mode -->
             <div class="flex items-center space-x-2">
+                <button id="btn-install-pwa" type="button" class="bg-indigo-600 hover:bg-indigo-500 text-white py-2 px-3 rounded-lg text-xs font-bold shadow-lg transition" aria-label="Install Oyalo app">
+                    <i class="fa-solid fa-download sm:mr-1"></i><span class="hidden sm:inline">Install app</span>
+                </button>
                 <button id="pwa-back-button" onclick="history.back()" class="hidden bg-slate-800 hover:bg-slate-700 text-white py-1.5 px-3 rounded-lg text-xs font-medium border border-slate-700 transition">
                     <i class="fa-solid fa-arrow-left mr-1"></i> Back
                 </button>
@@ -96,20 +99,6 @@
         <p>© 2026 Oyalo Cloud WiFi. All rights reserved.</p>
         <p class="mt-1 text-slate-600">Built for seamless MikroTik Hotspot Automation</p>
     </footer>
-
-    <!-- PWA Install Banner -->
-    <div id="pwa-install-banner" class="hidden fixed bottom-4 left-4 right-4 bg-slate-900 border border-indigo-500/30 p-4 rounded-xl shadow-2xl z-50 flex flex-col sm:flex-row items-center justify-between space-y-3 sm:space-y-0 max-w-lg mx-auto backdrop-blur-md bg-opacity-95">
-        <div class="flex items-center space-x-3">
-            <img src="/images/logo-192.png" alt="App Logo" class="w-12 h-12 rounded-xl">
-            <div>
-                <p class="font-bold text-white text-sm">Add Oyalo to Home Screen</p>
-                <p class="text-xs text-slate-400">Install as a lightweight web app for instant access and smart TV management.</p>
-            </div>
-        </div>
-        <button id="btn-install-pwa" class="bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-2 px-4 rounded-lg text-xs shadow-lg transition duration-200">
-            Install App
-        </button>
-    </div>
 
     <!-- PWA Loader -->
     <script src="/js/pwa.js"></script>

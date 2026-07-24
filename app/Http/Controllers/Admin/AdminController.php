@@ -9,6 +9,7 @@ use App\Models\Location;
 use App\Models\Package;
 use App\Models\Payment;
 use App\Services\MikroTikService;
+use App\Services\OwnerNotificationService;
 use App\Services\SmsService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
@@ -106,6 +107,14 @@ class AdminController extends Controller
         return back()->with('success', "Device status changed to {$device->status}.");
     }
 
+    public function updateSubscriptionNotifications(Request $request, Location $location)
+    {
+        $this->ensureManagedLocation($location->id);
+        $location->update(['subscription_email_notifications' => $request->boolean('subscription_email_notifications')]);
+
+        return back()->with('success', $location->subscription_email_notifications ? 'Subscription email notifications enabled.' : 'Subscription email notifications disabled.');
+    }
+
     public function showSubscriptions()
     {
         $locations = $this->getAdminLocations();
@@ -118,7 +127,7 @@ class AdminController extends Controller
     }
 
     /** Create or renew a customer subscription without requiring online checkout. */
-    public function createSubscription(Request $request, MikroTikService $mikrotik, SmsService $sms)
+    public function createSubscription(Request $request, MikroTikService $mikrotik, SmsService $sms, OwnerNotificationService $ownerNotifications)
     {
         $data = $request->validate([
             'location_id' => 'required|integer|exists:locations,id',
@@ -152,12 +161,15 @@ class AdminController extends Controller
             'paystack_reference' => 'MANUAL-'.strtoupper(Str::random(14)),
             'status' => 'success',
             'platform_commission' => $package->price * ($location->commission_percentage / 100),
+            'paystack_fee' => 0, // This subscription was issued manually, not charged by Paystack.
         ]);
         $router = $location->routers()->where('status', 'online')->first() ?: $location->routers()->first();
         if ($router) {
             $mikrotik->queueCreateUser($router, $customer->fresh());
         }
-        $sms->sendCredentials($customer->fresh(), $package->name);
+        $customer = $customer->fresh();
+        $sms->sendCredentials($customer, $package->name);
+        $ownerNotifications->subscriptionCreated($location->loadMissing('admin'), $customer, $package, $payment);
 
         return back()->with('success', "Subscription created for {$customer->username} through {$customer->expires_at->format('M j, Y g:i A')}.");
     }

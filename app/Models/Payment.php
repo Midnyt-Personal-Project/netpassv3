@@ -15,6 +15,7 @@ class Payment extends Model
         'paystack_reference',
         'status',
         'platform_commission',
+        'paystack_fee',
     ];
 
     public function location()

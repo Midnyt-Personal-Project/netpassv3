@@ -4,6 +4,9 @@
 @section('role', 'Hotspot Business Owner')
 
 @section('content')
+    <section class="mb-6 rounded-2xl border border-slate-800 bg-slate-900 p-4 sm:p-5">
+        <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between"><div><h3 class="font-bold text-white"><i class="fa-solid fa-envelope text-indigo-400 mr-2"></i>Subscription email alerts</h3><p class="text-xs text-slate-400 mt-1">Choose whether the location owner receives an email whenever a subscription is created or renewed.</p></div><div class="space-y-2 w-full sm:w-auto">@foreach($locations as $location)<form method="POST" action="{{ route('admin.locations.subscription-notifications', $location) }}" class="flex items-center justify-between gap-3 rounded-lg bg-slate-800 px-3 py-2 text-sm">@csrf<span class="text-slate-200 truncate">{{ $location->name }}</span><label class="flex items-center gap-2 text-xs text-slate-300 cursor-pointer"><input type="hidden" name="subscription_email_notifications" value="0"><input type="checkbox" name="subscription_email_notifications" value="1" onchange="this.form.submit()" @checked($location->subscription_email_notifications) class="accent-indigo-500"> Email owner</label></form>@endforeach</div></div>
+    </section>
     <!-- Stats Cards -->
     <div class="grid grid-cols-1 md:grid-cols-5 gap-6 mb-8">
         <div class="bg-slate-900 border border-slate-800 p-6 rounded-2xl shadow-lg">

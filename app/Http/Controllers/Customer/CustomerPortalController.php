@@ -11,6 +11,7 @@ use App\Models\Device;
 use App\Services\PaystackService;
 use App\Services\SmsService;
 use App\Services\MikroTikService;
+use App\Services\OwnerNotificationService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 use Carbon\Carbon;
@@ -20,12 +21,14 @@ class CustomerPortalController extends Controller
     protected $paystack;
     protected $sms;
     protected $mikrotik;
+    protected $ownerNotifications;
 
-    public function __construct(PaystackService $paystack, SmsService $sms, MikroTikService $mikrotik)
+    public function __construct(PaystackService $paystack, SmsService $sms, MikroTikService $mikrotik, OwnerNotificationService $ownerNotifications)
     {
         $this->paystack = $paystack;
         $this->sms = $sms;
         $this->mikrotik = $mikrotik;
+        $this->ownerNotifications = $ownerNotifications;
     }
 
     /**
@@ -94,6 +97,7 @@ class CustomerPortalController extends Controller
             'paystack_reference' => $reference,
             'status' => 'pending',
             'platform_commission' => $package->price * ($location->commission_percentage / 100),
+            'paystack_fee' => $package->price * (config('services.paystack.fee_percentage') / 100),
         ]);
 
         // Save phone/MAC details in session to link after callback
@@ -199,8 +203,9 @@ class CustomerPortalController extends Controller
                 $this->mikrotik->queueAddMac($router, $device, $customer);
             }
 
-            // Send credentials SMS
+            // Send credentials and optionally notify the location owner by email.
             $this->sms->sendCredentials($customer, $package->name);
+            $this->ownerNotifications->subscriptionCreated($location->loadMissing('admin'), $customer, $package, $payment->fresh());
 
             // Clear pending session data
             session()->forget(['pending_payment_phone', 'pending_payment_mac', 'pending_payment_device_name']);
