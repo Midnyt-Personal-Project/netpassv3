@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>@yield('title', 'Oyalo Hotspot Portal')</title>
     
     <!-- PWA Settings -->
@@ -25,6 +25,13 @@
             color: #f8fafc;
             -webkit-tap-highlight-color: transparent;
         }
+        /* Large, clearly focused controls work well with remotes and keyboards. */
+        button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible { outline: 3px solid #67e8f9; outline-offset: 3px; }
+        @media (min-width: 1100px) { body { font-size: 18px; } button, input, select { min-height: 48px; } }
+        .news-track { display: inline-flex; min-width: 100%; width: max-content; animation: news-scroll 32s linear infinite; }
+        .news-track:hover { animation-play-state: paused; }
+        @keyframes news-scroll { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+        @media (prefers-reduced-motion: reduce) { .news-track { animation: none; white-space: normal; width: auto; } }
         /* Custom scrollbar */
         ::-webkit-scrollbar {
             width: 6px;
@@ -54,6 +61,9 @@
             
             <!-- PWA Back / Menu Button inside Standalone Mode -->
             <div class="flex items-center space-x-2">
+                <button id="btn-install-pwa" type="button" class="bg-indigo-600 hover:bg-indigo-500 text-white py-2 px-3 rounded-lg text-xs font-bold shadow-lg transition" aria-label="Install Oyalo app">
+                    <i class="fa-solid fa-download sm:mr-1"></i><span class="hidden sm:inline">Install app</span>
+                </button>
                 <button id="pwa-back-button" onclick="history.back()" class="hidden bg-slate-800 hover:bg-slate-700 text-white py-1.5 px-3 rounded-lg text-xs font-medium border border-slate-700 transition">
                     <i class="fa-solid fa-arrow-left mr-1"></i> Back
                 </button>
@@ -93,20 +103,6 @@
         <p>© 2026 Oyalo Cloud WiFi. All rights reserved.</p>
         <p class="mt-1 text-slate-600">Built for seamless MikroTik Hotspot Automation</p>
     </footer>
-
-    <!-- PWA Install Banner -->
-    <div id="pwa-install-banner" class="hidden fixed bottom-4 left-4 right-4 bg-slate-900 border border-indigo-500/30 p-4 rounded-xl shadow-2xl z-50 flex flex-col sm:flex-row items-center justify-between space-y-3 sm:space-y-0 max-w-lg mx-auto backdrop-blur-md bg-opacity-95">
-        <div class="flex items-center space-x-3">
-            <img src="/images/logo-192.png" alt="App Logo" class="w-12 h-12 rounded-xl">
-            <div>
-                <p class="font-bold text-white text-sm">Add Oyalo to Home Screen</p>
-                <p class="text-xs text-slate-400">Install as a lightweight web app for instant access and smart TV management.</p>
-            </div>
-        </div>
-        <button id="btn-install-pwa" class="bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-2 px-4 rounded-lg text-xs shadow-lg transition duration-200">
-            Install App
-        </button>
-    </div>
 
     <!-- PWA Loader -->
     <script src="/js/pwa.js"></script>

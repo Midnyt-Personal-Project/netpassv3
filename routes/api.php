@@ -1,21 +1,11 @@
 <?php
 
-use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\ApiController;
+use Illuminate\Support\Facades\Route;
 
-/*
-|--------------------------------------------------------------------------
-| API Routes (Used by MikroTik Router via Fetch/Scheduler)
-|--------------------------------------------------------------------------
-*/
-
-Route::group(['prefix' => 'router'], function () {
-    // Heartbeat
+/* Router endpoints use the router ID/token headers, not browser authentication. */
+Route::prefix('router')->middleware('throttle:120,1')->group(function () {
     Route::post('heartbeat', [ApiController::class, 'heartbeat']);
-    
-    // Command polling
     Route::get('commands', [ApiController::class, 'fetchCommands']);
-    
-    // Command acknowledgment
-    Route::post('commands/{id}/ack', [ApiController::class, 'acknowledgeCommand']);
+    Route::post('commands/{id}/ack', [ApiController::class, 'acknowledgeCommand'])->whereNumber('id');
 });

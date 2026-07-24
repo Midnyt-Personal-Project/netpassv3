@@ -10,6 +10,7 @@ class Customer extends Model
         'location_id',
         'username',
         'password',
+        'voucher_code',
         'phone_number',
         'active_package_id',
         'expires_at',

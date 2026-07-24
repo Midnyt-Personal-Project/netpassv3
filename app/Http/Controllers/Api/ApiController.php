@@ -6,105 +6,76 @@ use App\Http\Controllers\Controller;
 use App\Models\Router;
 use App\Models\RouterCommand;
 use Illuminate\Http\Request;
-use Carbon\Carbon;
 
 class ApiController extends Controller
 {
-    /**
-     * Authenticate Router via Custom Headers
-     */
-    protected function authenticateRouter(Request $request)
+    /** Authenticate a router from its dedicated headers. Never accept credentials in query strings. */
+    protected function authenticateRouter(Request $request): ?Router
     {
         $routerId = $request->header('X-Router-ID');
         $apiToken = $request->header('X-Router-Token');
 
-        if (!$routerId || !$apiToken) {
+        if (!is_string($routerId) || !is_string($apiToken) || $routerId === '' || $apiToken === '') {
             return null;
         }
 
-        return Router::where('router_id', $routerId)
-                     ->where('api_token', $apiToken)
-                     ->first();
+        // Fetch by public router ID, then make the secret comparison timing-safe.
+        $router = Router::where('router_id', $routerId)->first();
+
+        return $router && hash_equals($router->api_token, $apiToken) ? $router : null;
     }
 
-    /**
-     * Heartbeat endpoint - tells server the router is online.
-     */
     public function heartbeat(Request $request)
     {
         $router = $this->authenticateRouter($request);
-
         if (!$router) {
-            return response()->json(['error' => 'Unauthorized Router'], 401);
+            return response()->json(['error' => 'Unauthorized router'], 401);
         }
 
-        $router->update([
-            'last_heartbeat' => Carbon::now(),
-            'status' => 'online',
-            'model' => $request->input('model', $router->model)
-        ]);
+        $data = $request->validate(['model' => ['nullable', 'string', 'max:100']]);
+        $router->update(['last_heartbeat' => now(), 'status' => 'online', 'model' => $data['model'] ?? $router->model]);
 
-        return response()->json([
-            'status' => 'success',
-            'message' => 'Heartbeat acknowledged',
-            'timestamp' => Carbon::now()->toIso8601String()
-        ]);
+        return response()->json(['status' => 'success', 'message' => 'Heartbeat acknowledged', 'timestamp' => now()->toIso8601String()]);
     }
 
-    /**
-     * Polling endpoint - Router fetches pending commands.
-     */
     public function fetchCommands(Request $request)
     {
         $router = $this->authenticateRouter($request);
-
         if (!$router) {
-            return response()->json(['error' => 'Unauthorized Router'], 401);
+            return response()->json(['error' => 'Unauthorized router'], 401);
         }
 
-        // Fetch all pending commands
-        $commands = $router->pendingCommands()->get();
+        // A bounded batch avoids an oversized polling response if a router has been offline.
+        $commands = $router->pendingCommands()->oldest()->limit(100)->get();
 
         return response()->json([
             'router_id' => $router->router_id,
-            'commands' => $commands->map(function ($cmd) {
-                return [
-                    'id' => $cmd->id,
-                    'type' => $cmd->command_type,
-                    'payload' => $cmd->payload,
-                ];
-            })
+            'commands' => $commands->map(fn (RouterCommand $command) => [
+                'id' => $command->id,
+                'type' => $command->command_type,
+                'payload' => $command->payload,
+            ])->values(),
         ]);
     }
 
-    /**
-     * Router acknowledges command completion.
-     */
-    public function acknowledgeCommand(Request $request, $commandId)
+    public function acknowledgeCommand(Request $request, int $commandId)
     {
         $router = $this->authenticateRouter($request);
-
         if (!$router) {
-            return response()->json(['error' => 'Unauthorized Router'], 401);
+            return response()->json(['error' => 'Unauthorized router'], 401);
         }
 
-        $command = RouterCommand::where('id', $commandId)
-                                ->where('router_id', $router->id)
-                                ->first();
-
+        $data = $request->validate(['status' => ['required', 'in:completed,failed']]);
+        $command = RouterCommand::whereKey($commandId)->where('router_id', $router->id)->first();
         if (!$command) {
             return response()->json(['error' => 'Command not found'], 404);
         }
+        if ($command->status !== 'pending') {
+            return response()->json(['error' => 'Command was already acknowledged'], 409);
+        }
 
-        $status = $request->input('status', 'completed'); // 'completed' or 'failed'
-        $command->update([
-            'status' => $status,
-            'executed_at' => Carbon::now()
-        ]);
+        $command->update(['status' => $data['status'], 'executed_at' => now()]);
 
-        return response()->json([
-            'status' => 'success',
-            'message' => "Command {$commandId} status updated to {$status}"
-        ]);
+        return response()->json(['status' => 'success', 'message' => "Command {$commandId} status updated to {$data['status']}"]);
     }
 }

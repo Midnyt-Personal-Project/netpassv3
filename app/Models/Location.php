@@ -6,6 +6,10 @@ use Illuminate\Database\Eloquent\Model;
 
 class Location extends Model
 {
+    protected $casts = [
+        'subscription_email_notifications' => 'boolean',
+    ];
+
     protected $fillable = [
         'admin_id',
         'name',
@@ -13,6 +17,7 @@ class Location extends Model
         'paystack_subaccount',
         'commission_percentage',
         'status',
+        'subscription_email_notifications',
     ];
 
     public function admin()
