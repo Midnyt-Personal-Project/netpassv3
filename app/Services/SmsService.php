@@ -2,10 +2,9 @@
 
 namespace App\Services;
 
-use App\Models\Customer;
-use App\Models\SmsLog;
-use Illuminate\Support\Facades\Http;
-use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\{Http, Log};
+
+use App\Models\{Customer, SmsLog};
 
 class SmsService
 {
@@ -14,8 +13,8 @@ class SmsService
 
     public function __construct()
     {
-        $this->apiKey = env('ARKESEL_SMS_API_KEY', 'mock_sms_key');
-        $this->senderId = env('ARKESEL_SMS_SENDER_ID', 'OyaloWiFi');
+        $this->apiKey = env('ARKESEL_SMS_API_KEY');
+        $this->senderId = env('ARKESEL_SMS_SENDER_ID');
     }
 
     /**
@@ -29,7 +28,7 @@ class SmsService
         try {
             // Simulated Arkesel API request
             // In production, uncomment the Http::get or Http::post request
-            /*
+            
             $response = Http::get('https://sms.arkesel.com/sms/api', [
                 'action' => 'send-sms',
                 'api_key' => $this->apiKey,
@@ -38,7 +37,7 @@ class SmsService
                 'sms' => $message
             ]);
             $status = $response->successful() ? 'sent' : 'failed';
-            */
+            
 
             // Log it in SMS logs
             SmsLog::create([

@@ -2,9 +2,9 @@
 
 namespace App\Services;
 
+use Illuminate\Support\Facades\{Http, Log};
+
 use App\Models\Location;
-use Illuminate\Support\Facades\Http;
-use Illuminate\Support\Facades\Log;
 
 class PaystackService
 {
@@ -13,7 +13,7 @@ class PaystackService
 
     public function __construct()
     {
-        $this->secretKey = config('services.paystack.secret_key');
+        $this->secretKey = env('PAYSTACK_SECRET_KEY', null);
     }
 
     /**
