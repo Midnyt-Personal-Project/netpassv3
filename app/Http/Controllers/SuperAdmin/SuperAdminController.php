@@ -61,6 +61,9 @@ class SuperAdminController extends Controller
             'paystack_subaccount' => 'nullable|string',
         ]);
 
+        // Locations can only belong to business-admin accounts.
+        User::whereKey($request->admin_id)->where('role', 'admin')->firstOrFail();
+
         Location::create([
             'admin_id' => $request->admin_id,
             'name' => $request->name,
@@ -97,7 +100,7 @@ class SuperAdminController extends Controller
 
     public function toggleAdminStatus($id)
     {
-        $admin = User::findOrFail($id);
+        $admin = User::whereKey($id)->where('role', 'admin')->firstOrFail();
         $admin->status = $admin->status === 'active' ? 'suspended' : 'active';
         $admin->save();
 

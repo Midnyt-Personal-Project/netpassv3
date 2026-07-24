@@ -59,8 +59,9 @@ class CustomerPortalController extends Controller
             'device_name' => 'nullable|string',
         ]);
 
-        $location = Location::where('slug', $slug)->firstOrFail();
-        $package = Package::findOrFail($request->package_id);
+        $location = Location::where('slug', $slug)->where('status', 'active')->firstOrFail();
+        // Never allow a package from another hotspot to be charged on this portal.
+        $package = Package::whereKey($request->package_id)->where('location_id', $location->id)->firstOrFail();
 
         if (!$location->paystack_subaccount) {
             return back()->with('error', 'Online payment is currently unavailable at this location.');

@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>@yield('title', 'Oyalo Hotspot Portal')</title>
     
     <!-- PWA Settings -->
@@ -25,6 +25,9 @@
             color: #f8fafc;
             -webkit-tap-highlight-color: transparent;
         }
+        /* Large, clearly focused controls work well with remotes and keyboards. */
+        button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible { outline: 3px solid #67e8f9; outline-offset: 3px; }
+        @media (min-width: 1100px) { body { font-size: 18px; } button, input, select { min-height: 48px; } }
         /* Custom scrollbar */
         ::-webkit-scrollbar {
             width: 6px;
