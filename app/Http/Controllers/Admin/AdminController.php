@@ -3,12 +3,16 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\ActivityLog;
 use App\Models\Announcement;
 use App\Models\Customer;
+use App\Models\EmailLog;
+use App\Models\SmsLog;
 use App\Models\Device;
 use App\Models\Location;
 use App\Models\Package;
 use App\Models\Payment;
+use App\Services\ActivityLogger;
 use App\Services\MikroTikService;
 use App\Services\OwnerNotificationService;
 use App\Services\SmsService;
@@ -84,7 +88,8 @@ class AdminController extends Controller
         $multiplier = ['minutes' => 1, 'hours' => 60, 'days' => 1440, 'months' => 43200][$data['duration_unit']];
         $data['duration_minutes'] = $data['duration_value'] * $multiplier;
         unset($data['duration_value'], $data['duration_unit']);
-        Package::create($data);
+        $package = Package::create($data);
+        app(ActivityLogger::class)->record('package.created', "Created package {$package->name} for {$package->location->name}.");
 
         return back()->with('success', 'Package created successfully.');
     }
@@ -111,6 +116,8 @@ class AdminController extends Controller
                 : $mikrotik->queueAddMac($router, $device, $device->customer);
         }
 
+        app(ActivityLogger::class)->record('device.status_changed', "{$device->name} ({$device->mac_address}) was {$device->status} at {$device->customer->location->name}.");
+
         return back()->with('success', "Device status changed to {$device->status}.");
     }
 
@@ -118,6 +125,7 @@ class AdminController extends Controller
     {
         $this->ensureManagedLocation($location->id);
         $location->update(['subscription_email_notifications' => $request->boolean('subscription_email_notifications')]);
+        app(ActivityLogger::class)->record('location.email_notifications', "Subscription email alerts were ".($location->subscription_email_notifications ? 'enabled' : 'disabled')." for {$location->name}.");
 
         return back()->with('success', $location->subscription_email_notifications ? 'Subscription email notifications enabled.' : 'Subscription email notifications disabled.');
     }
@@ -150,14 +158,28 @@ class AdminController extends Controller
             $this->ensureManagedLocation((int) $data['location_id']);
         }
 
-        Announcement::create([
+        $announcement = Announcement::create([
             ...$data,
             'created_by' => Auth::id(),
             'is_active' => true,
             'priority' => $data['priority'] ?? 0,
         ]);
+        app(ActivityLogger::class)->record('ticker.published', "Published ".($announcement->location_id ? 'location' : 'global')." ticker: {$announcement->message}");
 
         return back()->with('success', empty($data['location_id']) ? 'Global news ticker published.' : 'Location news ticker published.');
+    }
+
+    public function showLogs()
+    {
+        $locations = $this->getAdminLocations();
+        $locationIds = $locations->pluck('id');
+        $smsLogs = SmsLog::with('customer.location')->whereHas('customer', fn ($query) => $query->whereIn('location_id', $locationIds))->latest()->take(100)->get();
+        $emailLogs = EmailLog::with(['customer', 'location'])->whereIn('location_id', $locationIds)->latest()->take(100)->get();
+        $activityLogs = Auth::user()->isSuperAdmin()
+            ? ActivityLog::with('user')->latest()->take(100)->get()
+            : ActivityLog::with('user')->where('user_id', Auth::id())->latest()->take(100)->get();
+
+        return view('admin.logs', compact('smsLogs', 'emailLogs', 'activityLogs'));
     }
 
     public function showSubscriptions()
@@ -233,6 +255,7 @@ class AdminController extends Controller
         $customer = $customer->fresh();
         $sms->sendCredentials($customer, $package->name);
         $ownerNotifications->subscriptionCreated($location->loadMissing('admin'), $customer, $package, $payment);
+        app(ActivityLogger::class)->record('subscription.created', "Created {$package->name} subscription for voucher {$customer->voucher_code} at {$location->name}.");
 
         return back()->with('success', "Subscription created for {$customer->username} through {$customer->expires_at->format('M j, Y g:i A')}.");
     }

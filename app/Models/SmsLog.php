@@ -11,6 +11,7 @@ class SmsLog extends Model
         'phone_number',
         'message',
         'status',
+        'error_message',
     ];
 
     public function customer()

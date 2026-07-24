@@ -10,9 +10,9 @@
 @php
     $super = auth()->user()->isSuperAdmin();
     $nav = $super ? [
-        ['superadmin.dashboard','/superadmin','fa-gauge','Super dashboard'], ['admin.dashboard','/admin','fa-chart-line','All locations'], ['admin.packages','/admin/packages','fa-cubes','Packages'], ['admin.devices','/admin/devices','fa-tv','TV & devices'], ['admin.announcements','/admin/announcements','fa-bullhorn','News ticker'], ['admin.subscriptions','/admin/subscriptions','fa-user-plus','Subscriptions'],
+        ['superadmin.dashboard','/superadmin','fa-gauge','Super dashboard'], ['admin.dashboard','/admin','fa-chart-line','All locations'], ['admin.packages','/admin/packages','fa-cubes','Packages'], ['admin.devices','/admin/devices','fa-tv','TV & devices'], ['admin.announcements','/admin/announcements','fa-bullhorn','News ticker'], ['admin.subscriptions','/admin/subscriptions','fa-user-plus','Subscriptions'], ['admin.logs','/admin/logs','fa-clipboard-list','Logs'],
     ] : [
-        ['admin.dashboard','/admin','fa-gauge','Dashboard'], ['admin.packages','/admin/packages','fa-cubes','Packages'], ['admin.devices','/admin/devices','fa-tv','TV & devices'], ['admin.announcements','/admin/announcements','fa-bullhorn','News ticker'], ['admin.subscriptions','/admin/subscriptions','fa-user-plus','Subscriptions'],
+        ['admin.dashboard','/admin','fa-gauge','Dashboard'], ['admin.packages','/admin/packages','fa-cubes','Packages'], ['admin.devices','/admin/devices','fa-tv','TV & devices'], ['admin.announcements','/admin/announcements','fa-bullhorn','News ticker'], ['admin.subscriptions','/admin/subscriptions','fa-user-plus','Subscriptions'], ['admin.logs','/admin/logs','fa-clipboard-list','Logs'],
     ];
 @endphp
 <div id="nav-backdrop" class="fixed inset-0 bg-slate-950/70 z-30 hidden md:hidden" onclick="toggleSidebar(false)"></div>
