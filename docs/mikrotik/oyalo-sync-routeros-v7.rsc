@@ -1,5 +1,7 @@
 # Oyalo Cloud router sync script for RouterOS v7.13+.
 # Requires RouterOS JSON support (:deserialize from=json).
+# It automatically creates/updates plan profiles fetched from Oyalo, such as
+# oyalo-2days-12, oyalo-1hour-8, and oyalo-1month-23. Do not create them manually.
 # Create a script called oyalo-sync, paste this content as its Source,
 # then create the scheduler command shown at the bottom of this file.
 #
@@ -63,6 +65,9 @@
             }
             :if (([:typeof $rateLimit] != "nil") && ($rateLimit != "")) do={
                 /ip hotspot user profile set $profileId rate-limit=$rateLimit
+            } else={
+                # No speed values in Oyalo means unrestricted speed for this plan.
+                /ip hotspot user profile set $profileId rate-limit=""
             }
 
             # The voucher is deliberately both the hotspot user name and password.
