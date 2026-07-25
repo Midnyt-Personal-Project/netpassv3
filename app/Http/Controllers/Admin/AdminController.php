@@ -2,21 +2,6 @@
 
 namespace App\Http\Controllers\Admin;
 
-use App\Http\Controllers\Controller;
-use App\Models\ActivityLog;
-use App\Models\Announcement;
-use App\Models\Customer;
-use App\Models\EmailLog;
-use App\Models\SmsLog;
-use App\Models\Device;
-use App\Models\Location;
-use App\Models\Package;
-use App\Models\Payment;
-use App\Services\ActivityLogger;
-use App\Services\MikroTikService;
-use App\Services\OwnerNotificationService;
-use App\Services\SmsService;
-use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Str;
@@ -25,7 +10,6 @@ use Carbon\Carbon;
 use App\Http\Controllers\Controller;
 use App\Models\{ActivityLog, Announcement, Customer, Device, EmailLog, Location, Package, Payment, SmsLog};
 use App\Services\{ActivityLogger, MikroTikService, OwnerNotificationService, SmsService};
-use Illuminate\Support\Str;
 
 class AdminController extends Controller
 {
