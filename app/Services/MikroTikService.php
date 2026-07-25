@@ -2,10 +2,7 @@
 
 namespace App\Services;
 
-use App\Models\Router;
-use App\Models\RouterCommand;
-use App\Models\Customer;
-use App\Models\Device;
+use App\Models\{Customer, Device, Package, Router, RouterCommand};
 
 class MikroTikService
 {
@@ -15,12 +12,13 @@ class MikroTikService
     public function queueCreateUser(Router $router, Customer $customer)
     {
         $package = $customer->activePackage;
-        $profile = $package ? "oyalo_{$package->id}" : "default";
+        // Friendly, unique profile names: oyalo-2days-12, oyalo-1hour-8, etc.
+        $profile = $package ? $this->profileName($package) : 'default';
 
-        // Speed limit syntax in MikroTik e.g., "5M/2M" (download/upload)
+        // MikroTik rate-limit syntax is download/upload. A missing direction is unlimited (0).
         $rateLimit = null;
-        if ($package && $package->speed_limit_down && $package->speed_limit_up) {
-            $rateLimit = "{$package->speed_limit_up}/{$package->speed_limit_down}";
+        if ($package && ($package->speed_limit_down || $package->speed_limit_up)) {
+            $rateLimit = ($package->speed_limit_down ?: '0').'/'.($package->speed_limit_up ?: '0');
         }
 
         return RouterCommand::create([
@@ -31,6 +29,7 @@ class MikroTikService
                 'password' => $customer->password,
                 'profile' => $profile,
                 'rate_limit' => $rateLimit,
+                'duration_minutes' => $package?->duration_minutes,
                 'expires_at' => $customer->expires_at ? $customer->expires_at->toIso8601String() : null,
             ],
             'status' => 'pending'
@@ -74,8 +73,8 @@ class MikroTikService
     {
         $package = $customer->activePackage;
         $rateLimit = null;
-        if ($package && $package->speed_limit_down && $package->speed_limit_up) {
-            $rateLimit = "{$package->speed_limit_up}/{$package->speed_limit_down}";
+        if ($package && ($package->speed_limit_down || $package->speed_limit_up)) {
+            $rateLimit = ($package->speed_limit_down ?: '0').'/'.($package->speed_limit_up ?: '0');
         }
 
         return RouterCommand::create([
@@ -89,6 +88,23 @@ class MikroTikService
             ],
             'status' => 'pending'
         ]);
+    }
+
+    /** Build a human-readable but collision-safe profile name from the package duration. */
+    private function profileName(Package $package): string
+    {
+        $minutes = $package->duration_minutes;
+        if ($minutes % 43200 === 0) {
+            $label = ($minutes / 43200).'month'.($minutes === 43200 ? '' : 's');
+        } elseif ($minutes % 1440 === 0) {
+            $label = ($minutes / 1440).'day'.($minutes === 1440 ? '' : 's');
+        } elseif ($minutes % 60 === 0) {
+            $label = ($minutes / 60).'hour'.($minutes === 60 ? '' : 's');
+        } else {
+            $label = $minutes.'minutes';
+        }
+
+        return "oyalo-{$label}-{$package->id}";
     }
 
     /** Restore active device MAC access after a voucher is created or renewed. */

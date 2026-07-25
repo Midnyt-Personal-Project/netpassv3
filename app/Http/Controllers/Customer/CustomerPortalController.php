@@ -2,6 +2,15 @@
 
 namespace App\Http\Controllers\Customer;
 
+use App\Http\Controllers\Controller;
+use App\Models\Location;
+use App\Models\Package;
+use App\Models\Customer;
+use App\Models\Payment;
+use App\Models\Device;
+use App\Services\PaystackService;
+use App\Services\SmsService;
+use App\Services\MikroTikService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 use Carbon\Carbon;
