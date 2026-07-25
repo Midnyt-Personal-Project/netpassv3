@@ -14,7 +14,7 @@ class SmsService
     public function __construct()
     {
         $this->apiKey = env('ARKESEL_SMS_API_KEY');
-        $this->senderId = env('ARKESEL_SMS_SENDER_ID');
+        $this->senderId = env('ARKESEL_SMS_SENDER_ID', 'OyaloWiFi');
     }
 
     /** Send an SMS through Arkesel and always save the actual outcome for the owner. */
@@ -27,28 +27,21 @@ class SmsService
         }
 
         try {
-            // Simulated Arkesel API request
-            // In production, uncomment the Http::get or Http::post request
-            
-            // $response = Http::get('https://sms.arkesel.com/sms/api', [
-            //     'action' => 'send-sms',
-            //     'api_key' => $this->apiKey,
-            //     'to' => $formattedPhone,
-            //     'from' => $this->senderId,
-            //     'sms' => $message
-            // ]);
-            // $status = $response->successful() ? 'sent' : 'failed';
-            
-
-            // Log it in SMS logs
-            SmsLog::create([
-                'customer_id' => $customer ? $customer->id : null,
-                'phone_number' => $formattedPhone,
-                'message' => $message,
-                'status' => 'sent', // Mocked as sent
+            $response = Http::timeout(15)->acceptJson()->get('https://sms.arkesel.com/sms/api', [
+                'action' => 'send-sms',
+                'api_key' => $this->apiKey,
+                'to' => $formattedPhone,
+                'from' => $this->senderId,
+                'sms' => $message,
             ]);
 
-            Log::info("SMS Sent to {$formattedPhone}: {$message}");
+            if (!$response->successful()) {
+                return $this->logFailure($formattedPhone, $message, $customer, 'Gateway HTTP '.$response->status().': '.str($response->body())->limit(300));
+            }
+
+            SmsLog::create(['customer_id' => $customer?->id, 'phone_number' => $formattedPhone, 'message' => $message, 'status' => 'sent']);
+            Log::info("SMS accepted by gateway for {$formattedPhone}.");
+
             return true;
         } catch (\Throwable $exception) {
             return $this->logFailure($formattedPhone, $message, $customer, $exception->getMessage());

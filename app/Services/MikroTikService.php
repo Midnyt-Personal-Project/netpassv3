@@ -91,6 +91,16 @@ class MikroTikService
         ]);
     }
 
+    /** Restore active device MAC access after a voucher is created or renewed. */
+    public function queueActiveDevices(Router $router, Customer $customer): void
+    {
+        $customer->loadMissing('activePackage', 'devices');
+
+        foreach ($customer->devices->where('status', 'active') as $device) {
+            $this->queueAddMac($router, $device, $customer);
+        }
+    }
+
     /**
      * Queue MAC removal.
      */

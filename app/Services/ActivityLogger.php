@@ -2,8 +2,9 @@
 
 namespace App\Services;
 
-use App\Models\ActivityLog;
 use Illuminate\Support\Facades\Auth;
+
+use App\Models\ActivityLog;
 
 class ActivityLogger
 {
@@ -13,7 +14,7 @@ class ActivityLogger
             'user_id' => $userId ?? Auth::id(),
             'action' => $action,
             'description' => $description,
-            'ip_address' => $ipAddress ?? request()?->ip(),
+            'ip_address' => $ipAddress ?? (app()->runningInConsole() ? null : request()->ip()),
         ]);
     }
 }

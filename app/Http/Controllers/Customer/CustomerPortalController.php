@@ -200,6 +200,7 @@ class CustomerPortalController extends Controller
 
             if ($router) {
                 $this->mikrotik->queueCreateUser($router, $customer);
+                $this->mikrotik->queueActiveDevices($router, $customer);
             }
 
             // TV / Device MAC Auto-Registration Feature (if provided during checkout)
