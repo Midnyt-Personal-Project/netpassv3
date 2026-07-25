@@ -13,7 +13,7 @@ class PaystackService
 
     public function __construct()
     {
-        $this->secretKey = config('services.paystack.secret_key', env('PAYSTACK_SECRET_KEY', 'sk_test_mock_oyalo_key'));
+        $this->secretKey = config('services.paystack.secret_key');
     }
 
     /**
@@ -22,6 +22,11 @@ class PaystackService
      */
     public function createSubaccount(string $businessName, string $bankCode, string $accountNumber, float $percentageCharge)
     {
+        if (blank($this->secretKey)) {
+            Log::error('Paystack is not configured: PAYSTACK_SECRET_KEY is missing.');
+            return null;
+        }
+
         try {
             $response = Http::withHeaders([
                 'Authorization' => "Bearer {$this->secretKey}",
@@ -52,6 +57,11 @@ class PaystackService
      */
     public function initializeTransaction(string $email, float $amount, string $reference, string $callbackUrl, string $subaccountCode)
     {
+        if (blank($this->secretKey)) {
+            Log::error('Paystack is not configured: PAYSTACK_SECRET_KEY is missing.');
+            return null;
+        }
+
         // Paystack amounts are in kobo (GHS 10.00 = 1000)
         $amountInKobo = round($amount * 100);
 
@@ -86,6 +96,11 @@ class PaystackService
      */
     public function verifyTransaction(string $reference)
     {
+        if (blank($this->secretKey)) {
+            Log::error('Paystack is not configured: PAYSTACK_SECRET_KEY is missing.');
+            return null;
+        }
+
         try {
             $response = Http::withHeaders([
                 'Authorization' => "Bearer {$this->secretKey}",

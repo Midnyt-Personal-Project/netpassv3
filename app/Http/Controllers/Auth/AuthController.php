@@ -7,6 +7,7 @@ use Illuminate\Support\Facades\Auth;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
+use App\Services\ActivityLogger;
 
 class AuthController extends Controller
 {
@@ -15,7 +16,17 @@ class AuthController extends Controller
      */
     public function showLogin()
     {
+        if (Auth::check()) {
+            return $this->redirectFor(Auth::user());
+        }
+
         return view('auth.login');
+    }
+
+    private function redirectFor(User $user)
+    {
+        return $user->isSuperAdmin() ? redirect()->intended(route('superadmin.dashboard'))
+            : redirect()->intended(route('admin.dashboard'));
     }
 
     /**
@@ -28,18 +39,19 @@ class AuthController extends Controller
             'password' => 'required',
         ]);
 
-        if (Auth::attempt($credentials)) {
-            $request->session()->regenerate();
-
-            // Redirect based on role
+        if (Auth::attempt($credentials, $request->boolean('remember'))) {
             $user = Auth::user();
-            if ($user->isSuperAdmin()) {
-                return redirect()->intended('/superadmin');
-            } elseif ($user->isAdmin()) {
-                return redirect()->intended('/admin');
+
+            if ($user->status !== 'active') {
+                Auth::logout();
+
+                return back()->withErrors(['email' => 'This account is suspended. Please contact support.'])->onlyInput('email');
             }
 
-            return redirect()->intended('/');
+            $request->session()->regenerate();
+            app(ActivityLogger::class)->record('auth.login', "{$user->email} signed in.", $user->id, $request->ip());
+
+            return $this->redirectFor($user);
         }
 
         return back()->withErrors([
@@ -52,6 +64,9 @@ class AuthController extends Controller
      */
     public function logout(Request $request)
     {
+        if ($user = Auth::user()) {
+            app(ActivityLogger::class)->record('auth.logout', "{$user->email} signed out.", $user->id, $request->ip());
+        }
         Auth::logout();
         $request->session()->invalidate();
         $request->session()->regenerateToken();

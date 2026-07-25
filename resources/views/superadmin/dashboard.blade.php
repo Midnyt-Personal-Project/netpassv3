@@ -5,23 +5,14 @@
 
 @section('content')
     <!-- Stats Cards -->
-    <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-        <div class="bg-slate-900 border border-slate-800 p-6 rounded-2xl shadow-lg">
-            <p class="text-xs text-slate-400 uppercase font-bold tracking-wider mb-1">Admins</p>
-            <h3 class="text-3xl font-extrabold text-white">{{ $stats['total_admins'] }}</h3>
-        </div>
-        <div class="bg-slate-900 border border-slate-800 p-6 rounded-2xl shadow-lg">
-            <p class="text-xs text-slate-400 uppercase font-bold tracking-wider mb-1">Locations</p>
-            <h3 class="text-3xl font-extrabold text-white">{{ $stats['total_locations'] }}</h3>
-        </div>
-        <div class="bg-slate-900 border border-slate-800 p-6 rounded-2xl shadow-lg">
-            <p class="text-xs text-slate-400 uppercase font-bold tracking-wider mb-1">Online Routers</p>
-            <h3 class="text-3xl font-extrabold text-indigo-400">{{ $stats['total_routers'] }}</h3>
-        </div>
-        <div class="bg-slate-900 border border-slate-800 p-6 rounded-2xl shadow-lg">
-            <p class="text-xs text-slate-400 uppercase font-bold tracking-wider mb-1">Platform Commission (GHS)</p>
-            <h3 class="text-3xl font-extrabold text-emerald-400">{{ number_format($stats['total_commission'], 2) }}</h3>
-        </div>
+    <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 mb-8">
+        <div class="bg-slate-900 border border-slate-800 p-5 rounded-2xl shadow-lg"><p class="text-xs text-slate-400 uppercase font-bold tracking-wider mb-1">Gross sales (GHS)</p><h3 class="text-2xl font-extrabold text-white">{{ number_format($stats['total_sales'], 2) }}</h3></div>
+        <div class="bg-slate-900 border border-slate-800 p-5 rounded-2xl shadow-lg"><p class="text-xs text-slate-400 uppercase font-bold tracking-wider mb-1">Your commission (GHS)</p><h3 class="text-2xl font-extrabold text-emerald-400">{{ number_format($stats['total_commission'], 2) }}</h3></div>
+        <div class="bg-slate-900 border border-slate-800 p-5 rounded-2xl shadow-lg"><p class="text-xs text-slate-400 uppercase font-bold tracking-wider mb-1">Paystack fees (GHS)</p><h3 class="text-2xl font-extrabold text-amber-400">{{ number_format($stats['total_paystack_fees'], 2) }}</h3></div>
+        <div class="bg-indigo-950/40 border border-indigo-500/30 p-5 rounded-2xl shadow-lg"><p class="text-xs text-indigo-200 uppercase font-bold tracking-wider mb-1">Total owner payout (GHS)</p><h3 class="text-2xl font-extrabold text-cyan-300">{{ number_format($stats['owner_payout_total'], 2) }}</h3><p class="mt-1 text-[10px] text-indigo-200/70">Gross − your commission − Paystack fees</p></div>
+        <div class="bg-slate-900 border border-slate-800 p-5 rounded-2xl shadow-lg"><p class="text-xs text-slate-400 uppercase font-bold tracking-wider mb-1">Admins</p><h3 class="text-2xl font-extrabold text-white">{{ $stats['total_admins'] }}</h3></div>
+        <div class="bg-slate-900 border border-slate-800 p-5 rounded-2xl shadow-lg"><p class="text-xs text-slate-400 uppercase font-bold tracking-wider mb-1">Locations</p><h3 class="text-2xl font-extrabold text-white">{{ $stats['total_locations'] }}</h3></div>
+        <div class="bg-slate-900 border border-slate-800 p-5 rounded-2xl shadow-lg"><p class="text-xs text-slate-400 uppercase font-bold tracking-wider mb-1">Routers</p><h3 class="text-2xl font-extrabold text-indigo-400">{{ $stats['total_routers'] }}</h3></div>
     </div>
 
     <!-- Management Forms Grid -->
@@ -73,6 +64,10 @@
                     <label class="block text-xs text-slate-400 mb-1">Paystack Subaccount (Optional)</label>
                     <input type="text" name="paystack_subaccount" placeholder="ACCT_xxxxxxxx" class="w-full bg-slate-800 border border-slate-700 rounded-lg p-2.5 text-white text-sm focus:outline-none focus:border-indigo-500">
                 </div>
+                <label class="flex gap-3 items-start rounded-lg bg-slate-800/60 border border-slate-700 p-3 cursor-pointer">
+                    <input type="checkbox" name="subscription_email_notifications" value="1" class="mt-0.5 accent-indigo-500">
+                    <span><span class="block text-sm text-white font-semibold">Email the owner for each subscription</span><span class="block text-xs text-slate-400 mt-0.5">Sends a subscription receipt to the assigned admin owner.</span></span>
+                </label>
                 <button class="w-full bg-indigo-600 hover:bg-indigo-500 py-2.5 rounded-lg text-white font-bold text-sm shadow-lg transition">Create Location</button>
             </form>
         </div>

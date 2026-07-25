@@ -17,10 +17,10 @@ class MikroTikService
         $package = $customer->activePackage;
         $profile = $package ? "oyalo_{$package->id}" : "default";
 
-        // Speed limit syntax in MikroTik e.g., "5M/2M" (download/upload)
+        // MikroTik rate-limit syntax is download/upload, e.g. "5M/2M".
         $rateLimit = null;
         if ($package && $package->speed_limit_down && $package->speed_limit_up) {
-            $rateLimit = "{$package->speed_limit_up}/{$package->speed_limit_down}";
+            $rateLimit = "{$package->speed_limit_down}/{$package->speed_limit_up}";
         }
 
         return RouterCommand::create([
@@ -31,6 +31,7 @@ class MikroTikService
                 'password' => $customer->password,
                 'profile' => $profile,
                 'rate_limit' => $rateLimit,
+                'duration_minutes' => $package?->duration_minutes,
                 'expires_at' => $customer->expires_at ? $customer->expires_at->toIso8601String() : null,
             ],
             'status' => 'pending'
@@ -75,7 +76,7 @@ class MikroTikService
         $package = $customer->activePackage;
         $rateLimit = null;
         if ($package && $package->speed_limit_down && $package->speed_limit_up) {
-            $rateLimit = "{$package->speed_limit_up}/{$package->speed_limit_down}";
+            $rateLimit = "{$package->speed_limit_down}/{$package->speed_limit_up}";
         }
 
         return RouterCommand::create([
@@ -89,6 +90,16 @@ class MikroTikService
             ],
             'status' => 'pending'
         ]);
+    }
+
+    /** Restore active device MAC access after a voucher is created or renewed. */
+    public function queueActiveDevices(Router $router, Customer $customer): void
+    {
+        $customer->loadMissing('activePackage', 'devices');
+
+        foreach ($customer->devices->where('status', 'active') as $device) {
+            $this->queueAddMac($router, $device, $customer);
+        }
     }
 
     /**

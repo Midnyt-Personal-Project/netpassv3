@@ -1,0 +1,13 @@
+{
+  "name": "Oyalo Cloud Hotspot",
+  "short_name": "Oyalo",
+  "description": "Buy and manage hotspot access on phones, tablets, and TV browsers.",
+  "start_url": "/",
+  "display": "standalone",
+  "display_override": ["window-controls-overlay", "standalone", "browser"],
+  "background_color": "#0f172a",
+  "theme_color": "#4f46e5",
+  "orientation": "any",
+  "scope": "/",
+  "icons": [{"src":"/images/logo-192.png","sizes":"192x192","type":"image/png","purpose":"any maskable"},{"src":"/images/logo-512.png","sizes":"512x512","type":"image/png","purpose":"any maskable"}]
+}
