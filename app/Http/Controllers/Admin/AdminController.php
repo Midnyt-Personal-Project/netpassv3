@@ -8,7 +8,7 @@ use Illuminate\Support\Str;
 use Carbon\Carbon;
 
 use App\Http\Controllers\Controller;
-use App\Models\{ActivityLog, Announcement, Customer, Device, EmailLog, Location, Package, Payment, SmsLog};
+use App\Models\{ActivityLog, Announcement, Customer, Device, EmailLog, Location, Package, Payment, RouterCommand, SmsLog};
 use App\Services\{ActivityLogger, MikroTikService, OwnerNotificationService, SmsService};
 
 class AdminController extends Controller
@@ -81,6 +81,19 @@ class AdminController extends Controller
         unset($data['duration_value'], $data['duration_unit']);
         
         $package = Package::create($data);
+        $router = \App\Models\Location::find($package->location_id)?->routers()?->first();
+        if ($router) {
+            \App\Models\RouterCommand::create([
+                'router_id' => $router->id,
+                'command_type' => 'CREATE_PROFILE',
+                'payload' => [
+                    'name' => (new \App\Services\MikroTikService())->profileName($package),
+                    'speed_down' => $package->speed_limit_down ?: '0',
+                    'speed_up' => $package->speed_limit_up ?: '0',
+                ],
+                'status' => 'pending',
+            ]);
+        }
         app(ActivityLogger::class)->record('package.created', "Created package {$package->name} for {$package->location->name}.");
 
         return back()->with('success', 'Package created successfully.');
