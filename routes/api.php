@@ -8,4 +8,5 @@ Route::prefix('router')->middleware('throttle:120,1')->group(function () {
     Route::post('heartbeat', [ApiController::class, 'heartbeat']);
     Route::get('commands', [ApiController::class, 'fetchCommands']);
     Route::post('commands/{id}/ack', [ApiController::class, 'acknowledgeCommand'])->whereNumber('id');
+    Route::get('data', [ApiController::class, 'pullData']);
 });
