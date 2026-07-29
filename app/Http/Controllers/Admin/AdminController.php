@@ -81,6 +81,17 @@ class AdminController extends Controller
         unset($data['duration_value'], $data['duration_unit']);
         
         $package = Package::create($data);
+<<<<<<< HEAD
+=======
+        app(ActivityLogger::class)->record('package.created', "Created package {$package->name} for {$package->location->name}.");
+        $this->ensureManagedLocation((int) $data['location_id']);
+
+        // A month is treated as 30 days for a predictable hotspot expiry time.
+        $multiplier = ['minutes' => 1, 'hours' => 60, 'days' => 1440, 'months' => 43200][$data['duration_unit']];
+        $data['duration_minutes'] = $data['duration_value'] * $multiplier;
+        unset($data['duration_value'], $data['duration_unit']);
+        $package = Package::create($data);
+>>>>>>> 08bf8641430ee633af417d16a4b705de5f5599ee
         $router = \App\Models\Location::find($package->location_id)?->routers()?->first();
         if ($router) {
             \App\Models\RouterCommand::create([
