@@ -53,6 +53,10 @@
                     <label class="block text-xs text-slate-400 mb-1">Data Cap (MB, Optional)</label>
                     <input type="number" name="data_limit_mb" placeholder="e.g. 1024 for 1GB (Empty for Unlimited)" class="w-full bg-slate-800 border border-slate-700 rounded-lg p-2.5 text-white text-sm focus:outline-none focus:border-indigo-500">
                 </div>
+                <div>
+                    <label class="block text-xs text-slate-400 mb-1">Shared Users (max users)</label>
+                    <input type="number" name="share_users" min="1" max="100" value="{{ old('share_users', 1) }}" class="w-full bg-slate-800 border border-slate-700 rounded-lg p-2.5 text-white text-sm focus:outline-none focus:border-indigo-500">
+                </div>
                 <button class="w-full bg-indigo-600 hover:bg-indigo-500 py-2.5 rounded-lg text-white font-bold text-sm shadow-lg transition">Create Plan</button>
             </form>
         </div>
@@ -70,6 +74,7 @@
                             <th class="pb-3">Duration</th>
                             <th class="pb-3">Speed limits</th>
                             <th class="pb-3">Data Cap</th>
+                            <th class="pb-3">Shared Users</th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-slate-800/50 text-sm">
@@ -93,6 +98,7 @@
                                 <td class="py-3 text-slate-400">
                                     {{ $pkg->data_limit_mb ? number_format($pkg->data_limit_mb) . ' MB' : 'Unlimited Data' }}
                                 </td>
+                                <td class="py-3 text-slate-300">{{ $pkg->share_users ?? 1 }}</td>
                             </tr>
                         @empty
                             <tr>
