@@ -121,6 +121,12 @@ class SuperAdminController extends Controller
         return view('superadmin.routers', compact('routers'));
     }
 
+    public function showRouterCommands()
+    {
+        $commands = \App\Models\RouterCommand::with('router')->latest()->get();
+        return view('superadmin.router_commands', compact('commands'));
+    }
+
     public function toggleAdminStatus($id)
     {
         $admin = User::whereKey($id)->where('role', 'admin')->firstOrFail();
