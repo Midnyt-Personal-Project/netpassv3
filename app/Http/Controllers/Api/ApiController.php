@@ -84,4 +84,27 @@ class ApiController extends Controller
 
         return response()->json(['status' => 'success', 'message' => "Command {$commandId} status updated to {$data['status']}"]);
     }
+
+    public function pullData(Request $request)
+    {
+        $router = $this->authenticateRouter($request);
+        if (!$router) {
+            return response()->json(['error' => 'Unauthorized router'], 401);
+        }
+        $commands = $router->pendingCommands()->oldest()->limit(100)->get();
+        return response()->json([
+            'router' => [
+                'router_id' => $router->router_id,
+                'name' => $router->name,
+                'model' => $router->model,
+                'status' => $router->status,
+            ],
+            'commands' => $commands->map(fn ($c) => [
+                'id' => $c->id,
+                'type' => $c->command_type,
+                'payload' => $c->payload,
+                'status' => $c->status,
+            ])->values(),
+        ]);
+    }
 }

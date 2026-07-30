@@ -115,6 +115,12 @@ class SuperAdminController extends Controller
         return back()->with('success', 'Router created successfully. Generated Token: ' . $token);
     }
 
+    public function showRouters()
+    {
+        $routers = \App\Models\Router::with('location')->get();
+        return view('superadmin.routers', compact('routers'));
+    }
+
     public function toggleAdminStatus($id)
     {
         $admin = User::whereKey($id)->where('role', 'admin')->firstOrFail();

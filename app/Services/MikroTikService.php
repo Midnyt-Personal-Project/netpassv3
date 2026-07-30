@@ -91,7 +91,7 @@ class MikroTikService
     }
 
     /** Build a human-readable but collision-safe profile name from the package duration. */
-    private function profileName(Package $package): string
+    public function profileName(Package $package): string
     {
         $minutes = $package->duration_minutes;
         if ($minutes % 43200 === 0) {
