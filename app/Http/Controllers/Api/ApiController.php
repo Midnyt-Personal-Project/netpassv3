@@ -18,7 +18,7 @@ class ApiController extends Controller
         $this->activityLogger = $activityLogger;
     }
 
-    /** Authenticate a router from its dedicated headers. Never accept credentials in query strings. */
+    /** Authenticate a router from its dedicated headers. */
     protected function authenticateRouter(Request $request): ?Router
     {
         $routerId = $request->header('X-Router-ID');
@@ -32,7 +32,6 @@ class ApiController extends Controller
             return null;
         }
 
-        // Fetch by public router ID, then make the secret comparison timing-safe.
         $router = Router::where('router_id', $routerId)->first();
 
         if (!$router) {
@@ -64,23 +63,23 @@ class ApiController extends Controller
         $data = $request->validate(['model' => ['nullable', 'string', 'max:100']]);
         $wasOffline = $router->status !== 'online';
         $router->update([
-            'last_heartbeat' => now(), 
-            'status' => 'online', 
+            'last_heartbeat' => now(),
+            'status' => 'online',
             'model' => $data['model'] ?? $router->model
         ]);
-        
+
         if ($wasOffline) {
             $this->activityLogger->record(
-                'router.online', 
-                "Router {$router->router_id} checked in and is online.", 
-                null, 
+                'router.online',
+                "Router {$router->router_id} checked in and is online.",
+                null,
                 $request->ip()
             );
         }
 
         return response()->json([
-            'status' => 'success', 
-            'message' => 'Heartbeat acknowledged', 
+            'status' => 'success',
+            'message' => 'Heartbeat acknowledged',
             'timestamp' => now()->toIso8601String()
         ]);
     }
@@ -92,25 +91,42 @@ class ApiController extends Controller
             return response()->json(['error' => 'Unauthorized router'], 401);
         }
 
-        // A bounded batch avoids an oversized polling response if a router has been offline.
         $commands = $router->pendingCommands()->oldest()->limit(100)->get();
 
         $lines = $commands->map(function (RouterCommand $command) {
             $p = $command->payload ?? [];
             switch ($command->command_type) {
                 case 'CREATE_PROFILE':
-                    return $command->command_type . '|' . $command->id . '|' . ($p['name'] ?? '') . '|' . ($p['name'] ?? '') . '|' . ($p['duration_formatted'] ?? '');
+                    // Format: CREATE_PROFILE|id|profile_name|duration_formatted|share_users
+                    return $command->command_type . '|' . $command->id . '|'
+                        . ($p['name'] ?? '') . '|' . ($p['duration_formatted'] ?? '') . '|'
+                        . ($p['share_users'] ?? '');
+
                 case 'CREATE_USER':
-                    return $command->command_type . '|' . $command->id . '|' . ($p['username'] ?? '') . '|' . ($p['username'] ?? '') . '|' . ($p['profile'] ?? '');
+                    // Format: CREATE_USER|id|username|username|profile
+                    return $command->command_type . '|' . $command->id . '|'
+                        . ($p['username'] ?? '') . '|' . ($p['username'] ?? '') . '|'
+                        . ($p['profile'] ?? '');
+
                 case 'ADD_MAC':
-                    return $command->command_type . '|' . $command->id . '|' . ($p['mac'] ?? '') . '|' . ($p['profile'] ?? $p['username'] ?? '') . '|add';
+                    // Format: ADD_MAC|id|mac|profile_name (use profile if available, else username)
+                    return $command->command_type . '|' . $command->id . '|'
+                        . ($p['mac'] ?? '') . '|' . ($p['profile'] ?? $p['username'] ?? '');
+
                 case 'REMOVE_MAC':
-                    return $command->command_type . '|' . $command->id . '|' . ($p['mac'] ?? '') . '|' . ($p['mac'] ?? '') . '|remove';
+                    // Format: REMOVE_MAC|id|mac
+                    return $command->command_type . '|' . $command->id . '|'
+                        . ($p['mac'] ?? '');
+
                 case 'REMOVE_USER':
                 case 'DISABLE_USER':
-                    return $command->command_type . '|' . $command->id . '|' . ($p['username'] ?? '') . '|' . ($p['username'] ?? '') . '|' . $command->command_type;
+                    // Format: REMOVE_USER|id|username  or  DISABLE_USER|id|username
+                    return $command->command_type . '|' . $command->id . '|'
+                        . ($p['username'] ?? '');
+
                 default:
-                    return $command->command_type . '|' . $command->id . '|' . json_encode($p);
+                    return $command->command_type . '|' . $command->id . '|'
+                        . json_encode($p);
             }
         })->implode("\n");
 
@@ -126,26 +142,26 @@ class ApiController extends Controller
 
         $data = $request->validate(['status' => ['required', 'in:completed,failed']]);
         $command = RouterCommand::whereKey($commandId)->where('router_id', $router->id)->first();
-        
+
         if (!$command) {
             return response()->json(['error' => 'Command not found'], 404);
         }
-        
+
         if ($command->status !== 'pending') {
             return response()->json(['error' => 'Command was already acknowledged'], 409);
         }
 
         $command->update(['status' => $data['status'], 'executed_at' => now()]);
-        
+
         $this->activityLogger->record(
-            'router.command_acknowledged', 
-            "Router {$router->router_id} marked command {$command->id} ({$command->command_type}) as {$data['status']}.", 
-            null, 
+            'router.command_acknowledged',
+            "Router {$router->router_id} marked command {$command->id} ({$command->command_type}) as {$data['status']}.",
+            null,
             $request->ip()
         );
 
         return response()->json([
-            'status' => 'success', 
+            'status' => 'success',
             'message' => "Command {$commandId} status updated to {$data['status']}"
         ]);
     }
@@ -156,9 +172,9 @@ class ApiController extends Controller
         if (!$router) {
             return response()->json(['error' => 'Unauthorized router'], 401);
         }
-        
+
         $commands = $router->pendingCommands()->oldest()->limit(100)->get();
-        
+
         return response()->json([
             'router' => [
                 'router_id' => $router->router_id,
