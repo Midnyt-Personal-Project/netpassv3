@@ -62,15 +62,7 @@ class AdminController extends Controller
 
     public function createPackage(Request $request)
     {
-        $data = $request->validate([
-            'location_id' => 'required|integer|exists:locations,id',
-            'name' => 'required|string|max:100',
-            'price' => 'required|numeric|min:0',
-            'duration_value' => 'required|integer|min:1|max:999',
-            'duration_unit' => 'required|in:minutes,hours,days,months',
-            'speed_limit_up' => 'nullable|string|max:30',
-            'speed_limit_down' => 'nullable|string|max:30',
-            'data_limit_mb' => 'nullable|integer|min:1',
+      
         $data = $request->validate([
             'location_id' => 'required|integer|exists:locations,id',
             'name' => 'required|string|max:100',
