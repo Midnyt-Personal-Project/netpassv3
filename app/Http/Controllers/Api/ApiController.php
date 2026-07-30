@@ -57,18 +57,18 @@ class ApiController extends Controller
             $p = $command->payload ?? [];
             switch ($command->command_type) {
                 case 'CREATE_PROFILE':
-                    return $command->id . '|' . ($p['name'] ?? '') . '|' . ($p['name'] ?? '') . '|' . ($p['duration_formatted'] ?? '');
+                    return $command->command_type . '|' . $command->id . '|' . ($p['name'] ?? '') . '|' . ($p['name'] ?? '') . '|' . ($p['duration_formatted'] ?? '');
                 case 'CREATE_USER':
-                    return $command->id . '|' . ($p['username'] ?? '') . '|' . ($p['username'] ?? '') . '|' . ($p['profile'] ?? '');
+                    return $command->command_type . '| . $command->id . '|' . ($p['username'] ?? '') . '|' . ($p['username'] ?? '') . '|' . ($p['profile'] ?? '');
                 case 'ADD_MAC':
-                    return $command->id . '|' . ($p['mac'] ?? '') . '|' . ($p['username'] ?? '') . '|' . ($p['comment'] ?? '');
+                    return $command->command_type . '| . $command->id . '|' . ($p['mac'] ?? '') . '|' . ($p['username'] ?? '') . '|' . ($p['comment'] ?? '');
                 case 'REMOVE_MAC':
-                    return $command->id . '|' . ($p['mac'] ?? '') . '|' . ($p['mac'] ?? '') . '|' . 'remove';
+                    return $command->command_type . '| . $command->id . '|' . ($p['mac'] ?? '') . '|' . ($p['mac'] ?? '') . '|' . 'remove';
                 case 'REMOVE_USER':
                 case 'DISABLE_USER':
-                    return $command->id . '|' . ($p['username'] ?? '') . '|' . ($p['username'] ?? '') . '|' . $command->command_type;
+                    return $command->command_type . '| . $command->id . '|' . ($p['username'] ?? '') . '|' . ($p['username'] ?? '') . '|' . $command->command_type;
                 default:
-                    return $command->id . '|' . json_encode($p);
+                    return $command->command_type . '| . $command->id . '|' . json_encode($p);
             }
         })->implode("\n");
 
