@@ -82,16 +82,15 @@ class MikroTikService
             'command_type' => 'ADD_MAC',
             'payload' => [
                 'mac' => $device->mac_address,
-                'username' => $customer->username, // Associated customer for identification
-                'rate_limit' => $rateLimit,
-                'comment' => "Oyalo: {$device->name} ({$customer->username})"
+                'profile' => $package ? $this->profileName($package) : 'default',
+                'username' => $customer->username,
             ],
             'status' => 'pending'
         ]);
     }
 
     /** Build a human-readable but collision-safe profile name from the package duration. */
-    private function profileName(Package $package): string
+    public function profileName(Package $package): string
     {
         $minutes = $package->duration_minutes;
         if ($minutes % 43200 === 0) {
