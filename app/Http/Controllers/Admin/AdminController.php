@@ -71,8 +71,17 @@ class AdminController extends Controller
             'speed_limit_up' => 'nullable|string|max:30',
             'speed_limit_down' => 'nullable|string|max:30',
             'data_limit_mb' => 'nullable|integer|min:1',
+        $data = $request->validate([
+            'location_id' => 'required|integer|exists:locations,id',
+            'name' => 'required|string|max:100',
+            'price' => 'required|numeric|min:0',
+            'duration_value' => 'required|integer|min:1|max:999',
+            'duration_unit' => 'required|in:minutes,hours,days,months',
+            'speed_limit_up' => 'nullable|string|max:30',
+            'speed_limit_down' => 'nullable|string|max:30',
+            'data_limit_mb' => 'nullable|integer|min:1',
+            'share_users' => 'nullable|integer|min:1|max:100',
         ]);
-        
         $this->ensureManagedLocation((int) $data['location_id']);
 
         // A month is treated as 30 days for a predictable hotspot expiry time.
@@ -98,6 +107,9 @@ class AdminController extends Controller
                     'name' => (new \App\Services\MikroTikService())->profileName($package),
                     'speed_down' => $package->speed_limit_down ?: '0',
                     'speed_up' => $package->speed_limit_up ?: '0',
+                    'duration_minutes' => $package->duration_minutes,
+                    'duration_formatted' => sprintf('%dd %02d:%02d:%02d', floor($package->duration_minutes/1440), floor(($package->duration_minutes%1440)/60), $package->duration_minutes%60, 0),
+                    'share_users' => $package->share_users ?? 1,
                 ],
                 'status' => 'pending',
             ]);
