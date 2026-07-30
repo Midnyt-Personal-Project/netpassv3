@@ -275,8 +275,7 @@ class AdminController extends Controller
             ->whereIn('location_id', $locationIds)
             ->where('status', 'success')
             ->latest()
-            ->take(25)
-            ->get();
+            ->paginate(15); // using pagination as per the newer version
 
         return view('admin.subscriptions', compact('locations', 'packages', 'subscriptions'));
     }
