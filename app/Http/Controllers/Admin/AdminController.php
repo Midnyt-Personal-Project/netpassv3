@@ -244,7 +244,7 @@ class AdminController extends Controller
         $locationIds = $locations->pluck('id');
         $packages = Package::whereIn('location_id', $locationIds)->with('location')->orderBy('name')->get();
         $subscriptions = Payment::with(['customer', 'package', 'location'])
-            ->whereIn('location_id', $locationIds)->where('status', 'success')->latest()->take(25)->get();
+            ->whereIn('location_id', $locationIds)->where('status', 'success')->latest()->paginate(15);
 
         return view('admin.subscriptions', compact('locations', 'packages', 'subscriptions'));
     }
@@ -382,7 +382,7 @@ class AdminController extends Controller
         $locationIds = $locations->pluck('id');
         $packages = Package::whereIn('location_id', $locationIds)->with('location')->orderBy('name')->get();
         $subscriptions = Payment::with(['customer', 'package', 'location'])
-            ->whereIn('location_id', $locationIds)->where('status', 'success')->latest()->take(25)->get();
+            ->whereIn('location_id', $locationIds)->where('status', 'success')->latest()->paginate(15);
 
         return view('admin.subscriptions', compact('locations', 'packages', 'subscriptions'));
     }
