@@ -2,14 +2,22 @@
 
 namespace App\Http\Controllers\Api;
 
-use App\Http\Controllers\Controller;
-use App\Models\Router;
-use App\Models\RouterCommand;
-use App\Services\ActivityLogger;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
+
+use App\Http\Controllers\Controller;
+use App\Models\{Router, RouterCommand};
+use App\Services\ActivityLogger;
 
 class ApiController extends Controller
 {
+    protected ActivityLogger $activityLogger;
+
+    public function __construct(ActivityLogger $activityLogger)
+    {
+        $this->activityLogger = $activityLogger;
+    }
+
     /** Authenticate a router from its dedicated headers. Never accept credentials in query strings. */
     protected function authenticateRouter(Request $request): ?Router
     {
@@ -17,13 +25,33 @@ class ApiController extends Controller
         $apiToken = $request->header('X-Router-Token');
 
         if (!is_string($routerId) || !is_string($apiToken) || $routerId === '' || $apiToken === '') {
+            Log::warning('Router authentication failed: missing credentials', [
+                'ip' => $request->ip(),
+                'user_agent' => $request->userAgent()
+            ]);
             return null;
         }
 
         // Fetch by public router ID, then make the secret comparison timing-safe.
         $router = Router::where('router_id', $routerId)->first();
 
-        return $router && hash_equals($router->api_token, $apiToken) ? $router : null;
+        if (!$router) {
+            Log::warning('Router authentication failed: unknown router', [
+                'router_id' => $routerId,
+                'ip' => $request->ip()
+            ]);
+            return null;
+        }
+
+        if (!hash_equals($router->api_token, $apiToken)) {
+            Log::warning('Router authentication failed: invalid token', [
+                'router_id' => $routerId,
+                'ip' => $request->ip()
+            ]);
+            return null;
+        }
+
+        return $router;
     }
 
     public function heartbeat(Request $request)
@@ -35,12 +63,26 @@ class ApiController extends Controller
 
         $data = $request->validate(['model' => ['nullable', 'string', 'max:100']]);
         $wasOffline = $router->status !== 'online';
-        $router->update(['last_heartbeat' => now(), 'status' => 'online', 'model' => $data['model'] ?? $router->model]);
+        $router->update([
+            'last_heartbeat' => now(), 
+            'status' => 'online', 
+            'model' => $data['model'] ?? $router->model
+        ]);
+        
         if ($wasOffline) {
-            app(ActivityLogger::class)->record('router.online', "Router {$router->router_id} checked in and is online.", null, $request->ip());
+            $this->activityLogger->record(
+                'router.online', 
+                "Router {$router->router_id} checked in and is online.", 
+                null, 
+                $request->ip()
+            );
         }
 
-        return response()->json(['status' => 'success', 'message' => 'Heartbeat acknowledged', 'timestamp' => now()->toIso8601String()]);
+        return response()->json([
+            'status' => 'success', 
+            'message' => 'Heartbeat acknowledged', 
+            'timestamp' => now()->toIso8601String()
+        ]);
     }
 
     public function fetchCommands(Request $request)
@@ -55,20 +97,38 @@ class ApiController extends Controller
 
         $lines = $commands->map(function (RouterCommand $command) {
             $p = $command->payload ?? [];
-            switch ($command->command_type) {
+            $type = $command->command_type;
+            $id = $command->id;
+            
+            switch ($type) {
                 case 'CREATE_PROFILE':
-                    return $command->command_type . '|' . $command->id . '|' . ($p['name'] ?? '') . '|' . ($p['name'] ?? '') . '|' . ($p['duration_formatted'] ?? '');
+                    return $type . '|' . $id . '|' . 
+                           ($p['name'] ?? '') . '|' . 
+                           ($p['name'] ?? '') . '|' . 
+                           ($p['duration_formatted'] ?? '') . '|' . 
+                           ($p['share_users'] ?? '');
                 case 'CREATE_USER':
-                    return $command->command_type . '| . $command->id . '|' . ($p['username'] ?? '') . '|' . ($p['username'] ?? '') . '|' . ($p['profile'] ?? '');
+                    return $type . '|' . $id . '|' . 
+                           ($p['username'] ?? '') . '|' . 
+                           ($p['username'] ?? '') . '|' . 
+                           ($p['profile'] ?? '');
                 case 'ADD_MAC':
-                    return $command->command_type . '| . $command->id . '|' . ($p['mac'] ?? '') . '|' . ($p['username'] ?? '') . '|' . ($p['comment'] ?? '');
+                    return $type . '|' . $id . '|' . 
+                           ($p['mac'] ?? '') . '|' . 
+                           ($p['username'] ?? '') . '|' . 
+                           ($p['comment'] ?? '');
                 case 'REMOVE_MAC':
-                    return $command->command_type . '| . $command->id . '|' . ($p['mac'] ?? '') . '|' . ($p['mac'] ?? '') . '|' . 'remove';
+                    return $type . '|' . $id . '|' . 
+                           ($p['mac'] ?? '') . '|' . 
+                           ($p['mac'] ?? '') . '|remove';
                 case 'REMOVE_USER':
                 case 'DISABLE_USER':
-                    return $command->command_type . '| . $command->id . '|' . ($p['username'] ?? '') . '|' . ($p['username'] ?? '') . '|' . $command->command_type;
+                    return $type . '|' . $id . '|' . 
+                           ($p['username'] ?? '') . '|' . 
+                           ($p['username'] ?? '') . '|' . 
+                           $type;
                 default:
-                    return $command->command_type . '| . $command->id . '|' . json_encode($p);
+                    return $type . '|' . $id . '|' . json_encode($p);
             }
         })->implode("\n");
 
@@ -84,17 +144,28 @@ class ApiController extends Controller
 
         $data = $request->validate(['status' => ['required', 'in:completed,failed']]);
         $command = RouterCommand::whereKey($commandId)->where('router_id', $router->id)->first();
+        
         if (!$command) {
             return response()->json(['error' => 'Command not found'], 404);
         }
+        
         if ($command->status !== 'pending') {
             return response()->json(['error' => 'Command was already acknowledged'], 409);
         }
 
         $command->update(['status' => $data['status'], 'executed_at' => now()]);
-        app(ActivityLogger::class)->record('router.command_acknowledged', "Router {$router->router_id} marked command {$command->id} ({$command->command_type}) as {$data['status']}.", null, $request->ip());
+        
+        $this->activityLogger->record(
+            'router.command_acknowledged', 
+            "Router {$router->router_id} marked command {$command->id} ({$command->command_type}) as {$data['status']}.", 
+            null, 
+            $request->ip()
+        );
 
-        return response()->json(['status' => 'success', 'message' => "Command {$commandId} status updated to {$data['status']}"]);
+        return response()->json([
+            'status' => 'success', 
+            'message' => "Command {$commandId} status updated to {$data['status']}"
+        ]);
     }
 
     public function pullData(Request $request)
@@ -103,7 +174,9 @@ class ApiController extends Controller
         if (!$router) {
             return response()->json(['error' => 'Unauthorized router'], 401);
         }
+        
         $commands = $router->pendingCommands()->oldest()->limit(100)->get();
+        
         return response()->json([
             'router' => [
                 'router_id' => $router->router_id,
