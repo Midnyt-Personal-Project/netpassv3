@@ -8,7 +8,7 @@ use Illuminate\Support\Str;
 use Carbon\Carbon;
 
 use App\Http\Controllers\Controller;
-use App\Models\{ActivityLog, Announcement, Customer, Device, EmailLog, Location, Package, Payment, SmsLog};
+use App\Models\{ActivityLog, Announcement, Customer, Device, EmailLog, Location, Package, Payment, RouterCommand, SmsLog};
 use App\Services\{ActivityLogger, MikroTikService, OwnerNotificationService, SmsService};
 
 class AdminController extends Controller
@@ -103,6 +103,7 @@ class AdminController extends Controller
             'speed_limit_up' => 'nullable|string|max:30',
             'speed_limit_down' => 'nullable|string|max:30',
             'data_limit_mb' => 'nullable|integer|min:1',
+            'share_users' => 'nullable|integer|min:1|max:100',
         ]);
         $this->ensureManagedLocation((int) $data['location_id']);
 
@@ -119,6 +120,22 @@ class AdminController extends Controller
         $data['duration_minutes'] = $data['duration_value'] * $multiplier;
         unset($data['duration_value'], $data['duration_unit']);
         $package = Package::create($data);
+        $router = \App\Models\Location::find($package->location_id)?->routers()?->first();
+        if ($router) {
+            \App\Models\RouterCommand::create([
+                'router_id' => $router->id,
+                'command_type' => 'CREATE_PROFILE',
+                'payload' => [
+                    'name' => (new \App\Services\MikroTikService())->profileName($package),
+                    'speed_down' => $package->speed_limit_down ?: '0',
+                    'speed_up' => $package->speed_limit_up ?: '0',
+                    'duration_minutes' => $package->duration_minutes,
+                    'duration_formatted' => sprintf('%dd %02d:%02d:%02d', floor($package->duration_minutes/1440), floor(($package->duration_minutes%1440)/60), $package->duration_minutes%60, 0),
+                    'share_users' => $package->share_users ?? 1,
+                ],
+                'status' => 'pending',
+            ]);
+        }
         app(ActivityLogger::class)->record('package.created', "Created package {$package->name} for {$package->location->name}.");
 
         return back()->with('success', 'Package created successfully.');

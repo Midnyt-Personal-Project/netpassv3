@@ -16,6 +16,7 @@ return new class extends Migration {
             $table->string('speed_limit_up')->nullable(); // e.g. 2M
             $table->string('speed_limit_down')->nullable(); // e.g. 5M
             $table->integer('data_limit_mb')->nullable(); // Data cap in MB
+            $table->integer('share_users')->default(1); // Allowed shared users
             $table->timestamps();
         });
     }

@@ -14,6 +14,7 @@ class Package extends Model
         'speed_limit_up',
         'speed_limit_down',
         'data_limit_mb',
+        'share_users',
     ];
 
     public function location()
