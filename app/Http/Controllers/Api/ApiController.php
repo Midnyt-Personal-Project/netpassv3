@@ -53,14 +53,15 @@ class ApiController extends Controller
         // A bounded batch avoids an oversized polling response if a router has been offline.
         $commands = $router->pendingCommands()->oldest()->limit(100)->get();
 
-        return response()->json([
-            'router_id' => $router->router_id,
-            'commands' => $commands->map(fn (RouterCommand $command) => [
-                'id' => $command->id,
-                'type' => $command->command_type,
-                'payload' => $command->payload,
-            ])->values(),
-        ]);
+        $lines = $commands->map(function (RouterCommand $command) {
+            $p = $command->payload;
+            if ($command->command_type === 'CREATE_USER') {
+                return $command->id . '|' . ($p['username'] ?? '') . '|' . ($p['username'] ?? '') . '|' . ($p['profile'] ?? '');
+            }
+            return $command->id . '|' . ($p['username'] ?? $p['mac'] ?? '') . '|' . ($p['username'] ?? $p['mac'] ?? '') . '|' . ($p['profile'] ?? '');
+        })->implode("\n");
+
+        return response($lines, 200)->header('Content-Type', 'text/plain');
     }
 
     public function acknowledgeCommand(Request $request, int $commandId)
