@@ -10,7 +10,7 @@
 @php
     $super = auth()->user()->isSuperAdmin();
     $nav = $super ? [
-        ['superadmin.dashboard','/superadmin','fa-gauge','Super dashboard'], ['admin.dashboard','/admin','fa-chart-line','All locations'], ['admin.packages','/admin/packages','fa-cubes','Packages'], ['admin.devices','/admin/devices','fa-tv','TV & devices'], ['admin.announcements','/admin/announcements','fa-bullhorn','News ticker'], ['admin.subscriptions','/admin/subscriptions','fa-user-plus','Subscriptions'], ['superadmin.routers','/superadmin/routers','fa-server','Routers'], ['admin.logs','/admin/logs','fa-clipboard-list','Logs'],
+        ['superadmin.dashboard','/superadmin','fa-gauge','Super dashboard'], ['admin.dashboard','/admin','fa-chart-line','All locations'], ['admin.packages','/admin/packages','fa-cubes','Packages'], ['admin.devices','/admin/devices','fa-tv','TV & devices'], ['admin.announcements','/admin/announcements','fa-bullhorn','News ticker'], ['admin.subscriptions','/admin/subscriptions','fa-user-plus','Subscriptions'], ['superadmin.routers','/superadmin/routers','fa-server','Routers'], ['admin.logs','/admin/logs','fa-clipboard-list','Logs'],['superadmin.router-commands','/superadmin/router-commands','fa-terminal','Router commands'],
     ] : [
         ['admin.dashboard','/admin','fa-gauge','Dashboard'], ['admin.packages','/admin/packages','fa-cubes','Packages'], ['admin.devices','/admin/devices','fa-tv','TV & devices'], ['admin.announcements','/admin/announcements','fa-bullhorn','News ticker'], ['admin.subscriptions','/admin/subscriptions','fa-user-plus','Subscriptions'], ['admin.logs','/admin/logs','fa-clipboard-list','Logs'],
     ];
