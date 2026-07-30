@@ -103,6 +103,7 @@ class AdminController extends Controller
             'speed_limit_up' => 'nullable|string|max:30',
             'speed_limit_down' => 'nullable|string|max:30',
             'data_limit_mb' => 'nullable|integer|min:1',
+            'share_users' => 'nullable|integer|min:1|max:100',
         ]);
         $this->ensureManagedLocation((int) $data['location_id']);
 
@@ -130,6 +131,7 @@ class AdminController extends Controller
                     'speed_up' => $package->speed_limit_up ?: '0',
                     'duration_minutes' => $package->duration_minutes,
                     'duration_formatted' => sprintf('%dd %02d:%02d:%02d', floor($package->duration_minutes/1440), floor(($package->duration_minutes%1440)/60), $package->duration_minutes%60, 0),
+                    'share_users' => $package->share_users ?? 1,
                 ],
                 'status' => 'pending',
             ]);
