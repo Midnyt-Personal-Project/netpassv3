@@ -16,8 +16,6 @@ class AdminController extends Controller
     /**
      * Get all locations the current admin can manage.
      * Super admin sees all; regular admin sees only assigned locations.
-     *
-     * @return \Illuminate\Database\Eloquent\Collection
      */
     protected function getAdminLocations()
     {
@@ -30,8 +28,6 @@ class AdminController extends Controller
 
     /**
      * Get the IDs of the locations the admin can manage.
-     *
-     * @return \Illuminate\Support\Collection
      */
     protected function locationIds()
     {
@@ -40,16 +36,10 @@ class AdminController extends Controller
 
     /**
      * Ensure the admin has permission to manage a specific location.
-     *
-     * @param int $locationId
-     * @return Location
-     *
-     * @throws \Symfony\Component\HttpKernel\Exception\HttpException
      */
     protected function ensureManagedLocation(int $locationId): Location
     {
         abort_unless($this->locationIds()->contains($locationId), 403, 'You cannot manage this location.');
-
         return Location::findOrFail($locationId);
     }
 
@@ -458,9 +448,51 @@ class AdminController extends Controller
     }
 
     /**
+     * Block a subscription (disable the user on the router).
+     */
+    public function blockSubscription($id, MikroTikService $mikrotik)
+    {
+        $customer = Customer::findOrFail($id);
+        $this->ensureManagedLocation($customer->location_id);
+        $customer->update(['status' => 'blocked']);
+
+        $router = $customer->location->routers()->first();
+        if ($router) {
+            $mikrotik->queueDisableUser($router, $customer);
+        }
+
+        app(ActivityLogger::class)->record(
+            'subscription.blocked',
+            "Blocked subscription for {$customer->username} at {$customer->location->name}."
+        );
+
+        return back()->with('success', 'Subscription blocked successfully.');
+    }
+
+    /**
+     * Remove a subscription (remove the user from the router).
+     */
+    public function removeSubscription($id, MikroTikService $mikrotik)
+    {
+        $customer = Customer::findOrFail($id);
+        $this->ensureManagedLocation($customer->location_id);
+        $customer->update(['status' => 'expired']);
+
+        $router = $customer->location->routers()->first();
+        if ($router) {
+            $mikrotik->queueRemoveUser($router, $customer);
+        }
+
+        app(ActivityLogger::class)->record(
+            'subscription.removed',
+            "Removed subscription for {$customer->username} at {$customer->location->name}."
+        );
+
+        return back()->with('success', 'Subscription removed successfully.');
+    }
+
+    /**
      * Generate a unique voucher code.
-     *
-     * @return string
      */
     private function uniqueVoucher(): string
     {
