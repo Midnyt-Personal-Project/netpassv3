@@ -21,7 +21,7 @@ class AdminController extends Controller
 
         return $user->isSuperAdmin()
             ? Location::orderBy('name')->get()
-            : $user->locations()->orderBy('name')->get();
+            : $user->locations()->orderBy('name')->latest()->paginate(15);
     }
 
     protected function locationIds()
@@ -38,7 +38,7 @@ class AdminController extends Controller
 
         return $user->isSuperAdmin()
             ? Location::orderBy('name')->get()
-            : $user->locations()->orderBy('name')->get();
+            : $user->locations()->orderBy('name')->latest()->paginate(15);
     }
 
     protected function locationIds()
@@ -66,10 +66,10 @@ class AdminController extends Controller
             'total_devices' => Device::whereHas('customer', fn ($query) => $query->whereIn('location_id', $locationIds))->count(),
             'total_devices' => Device::whereHas('customer', fn ($query) => $query->whereIn('location_id', $locationIds))->count(),
         ];
-        $payments = Payment::with(['customer', 'package', 'location'])->whereIn('location_id', $locationIds)->latest()->take(10)->get();
-        $customers = Customer::with(['activePackage', 'location'])->whereIn('location_id', $locationIds)->latest()->take(10)->get();
-        $payments = Payment::with(['customer', 'package', 'location'])->whereIn('location_id', $locationIds)->latest()->take(10)->get();
-        $customers = Customer::with(['activePackage', 'location'])->whereIn('location_id', $locationIds)->latest()->take(10)->get();
+        $payments = Payment::with(['customer', 'package', 'location'])->whereIn('location_id', $locationIds)->latest()->take(10)->latest()->paginate(15);
+        $customers = Customer::with(['activePackage', 'location'])->whereIn('location_id', $locationIds)->latest()->take(10)->latest()->paginate(15);
+        $payments = Payment::with(['customer', 'package', 'location'])->whereIn('location_id', $locationIds)->latest()->take(10)->latest()->paginate(15);
+        $customers = Customer::with(['activePackage', 'location'])->whereIn('location_id', $locationIds)->latest()->take(10)->latest()->paginate(15);
 
         return view('admin.dashboard', compact('stats', 'payments', 'customers', 'locations'));
     }
@@ -77,8 +77,8 @@ class AdminController extends Controller
     public function showPackages()
     {
         $locations = $this->getAdminLocations();
-        $packages = Package::whereIn('location_id', $locations->pluck('id'))->with('location')->get();
-        $packages = Package::whereIn('location_id', $locations->pluck('id'))->with('location')->get();
+        $packages = Package::whereIn("location_id", $locations->pluck("id"))->with("location")->latest()->paginate(15);
+        $packages = Package::whereIn("location_id", $locations->pluck("id"))->with("location")->latest()->paginate(15);
 
         return view('admin.packages', compact('packages', 'locations'));
     }
@@ -145,10 +145,10 @@ class AdminController extends Controller
     {
         $locationIds = $this->locationIds();
         $devices = Device::whereHas('customer', fn ($query) => $query->whereIn('location_id', $locationIds))
-            ->with('customer.location')->latest()->get();
+            ->with('customer.location')->latest()->latest()->paginate(15);
         $locationIds = $this->locationIds();
         $devices = Device::whereHas('customer', fn ($query) => $query->whereIn('location_id', $locationIds))
-            ->with('customer.location')->latest()->get();
+            ->with('customer.location')->latest()->latest()->paginate(15);
 
         return view('admin.devices', compact('devices'));
     }
@@ -192,7 +192,7 @@ class AdminController extends Controller
         $locationIds = $locations->pluck('id');
         $announcements = Announcement::with('location')
             ->where(fn ($query) => $query->whereNull('location_id')->orWhereIn('location_id', $locationIds))
-            ->latest()->take(30)->get();
+            ->latest()->take(30)->latest()->paginate(15);
 
         return view('admin.announcements', compact('locations', 'announcements'));
     }
@@ -229,11 +229,11 @@ class AdminController extends Controller
     {
         $locations = $this->getAdminLocations();
         $locationIds = $locations->pluck('id');
-        $smsLogs = SmsLog::with('customer.location')->whereHas('customer', fn ($query) => $query->whereIn('location_id', $locationIds))->latest()->take(100)->get();
-        $emailLogs = EmailLog::with(['customer', 'location'])->whereIn('location_id', $locationIds)->latest()->take(100)->get();
+        $smsLogs = SmsLog::with('customer.location')->whereHas('customer', fn ($query) => $query->whereIn('location_id', $locationIds))->latest()->take(100)->latest()->paginate(15);
+        $emailLogs = EmailLog::with(['customer', 'location'])->whereIn('location_id', $locationIds)->latest()->take(100)->latest()->paginate(15);
         $activityLogs = Auth::user()->isSuperAdmin()
             ? ActivityLog::with('user')->latest()->take(100)->get()
-            : ActivityLog::with('user')->where('user_id', Auth::id())->latest()->take(100)->get();
+            : ActivityLog::with('user')->where('user_id', Auth::id())->latest()->take(100)->latest()->paginate(15);
 
         return view('admin.logs', compact('smsLogs', 'emailLogs', 'activityLogs'));
     }
@@ -242,7 +242,7 @@ class AdminController extends Controller
     {
         $locations = $this->getAdminLocations();
         $locationIds = $locations->pluck('id');
-        $packages = Package::whereIn('location_id', $locationIds)->with('location')->orderBy('name')->get();
+        $packages = Package::whereIn('location_id', $locationIds)->with('location')->orderBy('name')->latest()->paginate(15);
         $subscriptions = Payment::with(['customer', 'package', 'location'])
             ->whereIn('location_id', $locationIds)->where('status', 'success')->latest()->paginate(15);
 
@@ -330,7 +330,7 @@ class AdminController extends Controller
         $locationIds = $locations->pluck('id');
         $announcements = Announcement::with('location')
             ->where(fn ($query) => $query->whereNull('location_id')->orWhereIn('location_id', $locationIds))
-            ->latest()->take(30)->get();
+            ->latest()->take(30)->latest()->paginate(15);
 
         return view('admin.announcements', compact('locations', 'announcements'));
     }
@@ -367,11 +367,11 @@ class AdminController extends Controller
     {
         $locations = $this->getAdminLocations();
         $locationIds = $locations->pluck('id');
-        $smsLogs = SmsLog::with('customer.location')->whereHas('customer', fn ($query) => $query->whereIn('location_id', $locationIds))->latest()->take(100)->get();
-        $emailLogs = EmailLog::with(['customer', 'location'])->whereIn('location_id', $locationIds)->latest()->take(100)->get();
+        $smsLogs = SmsLog::with('customer.location')->whereHas('customer', fn ($query) => $query->whereIn('location_id', $locationIds))->latest()->take(100)->latest()->paginate(15);
+        $emailLogs = EmailLog::with(['customer', 'location'])->whereIn('location_id', $locationIds)->latest()->take(100)->latest()->paginate(15);
         $activityLogs = Auth::user()->isSuperAdmin()
             ? ActivityLog::with('user')->latest()->take(100)->get()
-            : ActivityLog::with('user')->where('user_id', Auth::id())->latest()->take(100)->get();
+            : ActivityLog::with('user')->where('user_id', Auth::id())->latest()->take(100)->latest()->paginate(15);
 
         return view('admin.logs', compact('smsLogs', 'emailLogs', 'activityLogs'));
     }
@@ -380,7 +380,7 @@ class AdminController extends Controller
     {
         $locations = $this->getAdminLocations();
         $locationIds = $locations->pluck('id');
-        $packages = Package::whereIn('location_id', $locationIds)->with('location')->orderBy('name')->get();
+        $packages = Package::whereIn('location_id', $locationIds)->with('location')->orderBy('name')->latest()->paginate(15);
         $subscriptions = Payment::with(['customer', 'package', 'location'])
             ->whereIn('location_id', $locationIds)->where('status', 'success')->latest()->paginate(15);
 

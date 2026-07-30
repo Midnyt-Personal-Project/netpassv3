@@ -16,3 +16,4 @@
 @endforeach
 </table>
 @endsection
+<form method="GET" class="mb-2"><input name="q" placeholder="Search..." value="{{ request("q") }}" class="bg-slate-800 border border-slate-700 rounded p-2 text-white"></form>
