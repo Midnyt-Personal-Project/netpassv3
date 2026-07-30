@@ -34,6 +34,15 @@ return [
         'fee_percentage' => (float) env('PAYSTACK_FEE_PERCENTAGE', 1.95),
     ],
 
+    'arkesel' => [
+        'api_key' => env('ARKESEL_SMS_API_KEY'),
+        'sender_id' => env('ARKESEL_SMS_SENDER_ID', 'OyaloWiFi'),
+    ],
+
+    'router' => [
+        'offline_after_minutes' => (int) env('ROUTER_OFFLINE_AFTER_MINUTES', 3),
+    ],
+
     'slack' => [
         'notifications' => [
             'bot_user_oauth_token' => env('SLACK_BOT_USER_OAUTH_TOKEN'),

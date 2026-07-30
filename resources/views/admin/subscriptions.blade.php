@@ -1,6 +1,6 @@
 @extends('layouts.app')
 @section('title', 'Subscriptions')
-@section('page_title', 'Create & Renew Subscriptions')
+@section('page_title', 'Create Subscriptions')
 @section('role', auth()->user()->isSuperAdmin() ? 'Super Administrator — all locations' : 'Hotspot Business Owner')
 
 @section('content')
@@ -9,7 +9,7 @@
     <section class="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl">
         <div class="mb-6">
             <h3 class="text-lg font-bold text-white"><i class="fa-solid fa-user-plus text-indigo-400 mr-2"></i>Grant access</h3>
-            <p class="text-xs text-slate-400 mt-1">Create a customer or renew an existing customer by phone number. Router access and credentials are synced automatically.</p>
+            <p class="text-xs text-slate-400 mt-1">Every sale creates a new voucher, even when the phone number has purchased before. Router access and credentials are synced automatically.</p>
         </div>
         @if($locations->isEmpty() || $packages->isEmpty())
             <p class="text-sm text-amber-300">Create a location and at least one package before granting a subscription.</p>
@@ -95,8 +95,20 @@
                             <td class="py-3 text-slate-300">{{ $subscription->package->name }}</td>
                             <td class="py-3 text-slate-300">{{ $subscription->location->name }}</td>
                             <td class="py-3 text-slate-300">{{ $subscription->customer?->expires_at?->format('M j, Y g:i A') ?? '—' }}</td>
-                            <td class="py-3 text-xs font-bold {{ $subscription->customer?->status === 'active' ? 'text-emerald-400' : ($subscription->customer?->status === 'blocked' ? 'text-red-400' : 'text-slate-500') }}">
-                                {{ $subscription->customer?->status ?? 'N/A' }}
+                            @php
+                                $customer = $subscription->customer;
+                                $displayStatus = !$customer
+                                    ? 'N/A'
+                                    : ($customer->hasActiveAccess() ? 'Active' : ($customer->status === 'suspended' ? 'Suspended' : 'Expired'));
+                            @endphp
+                            <td @class([
+                                'py-3 text-xs font-bold uppercase',
+                                'text-emerald-400' => $displayStatus === 'Active',
+                                'text-red-400' => $displayStatus === 'Suspended',
+                                'text-amber-400' => $displayStatus === 'Expired',
+                                'text-slate-500' => $displayStatus === 'N/A',
+                            ])>
+                                {{ $displayStatus }}
                             </td>
                             <td class="py-3 text-emerald-400">{{ number_format($subscription->amount, 2) }} GHS</td>
                             <td class="py-3 text-center space-x-2">

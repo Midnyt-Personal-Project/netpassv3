@@ -8,7 +8,7 @@ use Illuminate\Support\Str;
 
 use App\Http\Controllers\Controller;
 use App\Models\{Location, Payment, Router, User};
-use App\Services\ActivityLogger;
+use App\Services\{ActivityLogger, MikroTikService};
 
 class SuperAdminController extends Controller
 {
@@ -89,16 +89,20 @@ class SuperAdminController extends Controller
         return back()->with('success', 'Location created successfully.');
     }
 
-    public function createRouter(Request $request)
+    public function createRouter(Request $request, MikroTikService $mikrotik)
     {
         $request->validate([
             'location_id' => 'required|exists:locations,id',
             'name' => 'required|string',
         ]);
 
-        // Generate Router ID e.g., RTR-123456
-        $routerId = 'RTR-' . rand(100000, 999999);
-        $token = 'oyalo_' . Str::random(32);
+        do {
+            $routerId = 'RTR-'.random_int(100000, 999999);
+        } while (Router::where('router_id', $routerId)->exists());
+
+        do {
+            $token = 'oyalo_'.Str::random(48);
+        } while (Router::where('api_token', $token)->exists());
 
         $router = Router::create([
             'location_id' => $request->location_id,
@@ -108,9 +112,14 @@ class SuperAdminController extends Controller
             'status' => 'offline'
         ]);
 
+        // A newly added router must receive profiles that existed before it.
+        foreach ($router->location->packages()->get() as $package) {
+            $mikrotik->queueCreateProfile($router, $package);
+        }
+
         app(ActivityLogger::class)->record('router.created', "Created router {$router->router_id} for location ID {$router->location_id}.");
 
-        return back()->with('success', 'Router created successfully. Generated Token: ' . $token);
+        return back()->with('success', 'Router created successfully. Generated Token: '.$token);
     }
 
     public function showRouters()

@@ -2,61 +2,62 @@
 
 namespace App\Http\Controllers\Customer;
 
-use Illuminate\Http\Request;
-use Illuminate\Support\Str;
-use Carbon\Carbon;
-
 use App\Http\Controllers\Controller;
 use App\Models\{Announcement, Customer, Device, Location, Package, Payment};
-use App\Services\{ActivityLogger, MikroTikService, OwnerNotificationService, PaystackService, SmsService};
+use App\Services\{MikroTikService, PaymentFulfillmentService, PaystackService};
+use App\Support\PhoneNumber;
+use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
+use Throwable;
 
 class CustomerPortalController extends Controller
 {
-    protected $paystack;
-    protected $sms;
-    protected $mikrotik;
-    protected $ownerNotifications;
-
-    public function __construct(PaystackService $paystack, SmsService $sms, MikroTikService $mikrotik, OwnerNotificationService $ownerNotifications)
+    public function __construct(
+        private readonly PaystackService $paystack,
+        private readonly MikroTikService $mikrotik,
+        private readonly PaymentFulfillmentService $paymentFulfillment,
+    )
     {
-        $this->paystack = $paystack;
-        $this->sms = $sms;
-        $this->mikrotik = $mikrotik;
-        $this->ownerNotifications = $ownerNotifications;
     }
 
-    /**
-     * View location portal (Splash Page)
-     */
-    public function showPortal($slug, Request $request)
+    /** View a location's public hotspot portal. */
+    public function showPortal(string $slug, Request $request)
     {
         $location = Location::where('slug', $slug)->where('status', 'active')->firstOrFail();
-        $packages = $location->packages;
+        $packages = $location->packages()->orderBy('price')->get();
 
-        // The cookie is encrypted and only issued after a verified payment. Do not trust a username in the URL.
+        // This encrypted cookie is issued only after a verified payment. A
+        // phone number is never used to select which voucher is displayed.
         $username = $request->cookie('oyalo_customer_username');
-        $customer = null;
-
-        if ($username) {
-            $customer = Customer::where('username', $username)->where('location_id', $location->id)->first();
-        }
+        $customer = $username
+            ? Customer::with(['activePackage', 'devices'])
+                ->where('username', $username)
+                ->where('location_id', $location->id)
+                ->first()
+            : null;
 
         $announcements = Announcement::visible()
             ->where(fn ($query) => $query->whereNull('location_id')->orWhere('location_id', $location->id))
-            ->orderByDesc('priority')->oldest()->get();
+            ->orderByDesc('priority')
+            ->oldest()
+            ->get();
 
         return view('customer.portal', compact('location', 'packages', 'customer', 'announcements'));
     }
 
-    /** Public voucher lookup page. It returns only the status for the voucher's own location. */
+    /** Public voucher lookup page scoped to the current location. */
     public function showSubscriptionStatus(string $slug, Request $request)
     {
         $location = Location::where('slug', $slug)->where('status', 'active')->firstOrFail();
         $customer = null;
 
         if ($request->filled('voucher')) {
-            $voucher = strtoupper(trim($request->string('voucher')->toString()));
-            $customer = Customer::where('location_id', $location->id)->where('voucher_code', $voucher)->first();
+            $voucher = Str::upper(trim($request->string('voucher')->toString()));
+            $customer = Customer::where('location_id', $location->id)
+                ->where('voucher_code', $voucher)
+                ->first();
 
             if (!$customer) {
                 return back()->withInput()->with('error', 'Voucher not found for this location.');
@@ -66,270 +67,244 @@ class CustomerPortalController extends Controller
         return view('customer.subscription-status', compact('location', 'customer'));
     }
 
-    /**
-     * Initiate payment via Paystack
-     */
-    public function checkout(Request $request, $slug)
+    /** Initialize a Paystack checkout and persist everything needed by its callback. */
+    public function checkout(Request $request, string $slug): RedirectResponse
     {
-        $request->validate([
-            'phone_number' => 'required|string',
-            'package_id' => 'required|exists:packages,id',
-            'mac_address' => 'nullable|string', // Optional, to auto-register current TV/Device MAC
-            'device_name' => 'nullable|string',
+        $normalizedPhone = PhoneNumber::normalize($request->input('phone_number'));
+        $request->merge(['phone_number' => $normalizedPhone ?? $request->input('phone_number')]);
+
+        $data = $request->validate([
+            'phone_number' => ['required', 'string', 'regex:/^233[0-9]{9}$/'],
+            'package_id' => ['required', 'integer', 'exists:packages,id'],
+            'mac_address' => ['nullable', 'required_with:device_name', 'string', 'regex:/^([0-9A-Fa-f]{2}[:-]){5}[0-9A-Fa-f]{2}$/'],
+            'device_name' => ['nullable', 'required_with:mac_address', 'string', 'max:50'],
+        ], [
+            'phone_number.regex' => 'Enter a valid Ghana phone number, for example 0244123456.',
         ]);
 
         $location = Location::where('slug', $slug)->where('status', 'active')->firstOrFail();
-        // Never allow a package from another hotspot to be charged on this portal.
-        $package = Package::whereKey($request->package_id)->where('location_id', $location->id)->firstOrFail();
+        $package = Package::whereKey($data['package_id'])
+            ->where('location_id', $location->id)
+            ->firstOrFail();
 
         if (!$location->paystack_subaccount) {
-            return back()->with('error', 'Online payment is currently unavailable at this location.');
+            return back()->withInput()->with('error', 'Online payment is currently unavailable at this location.');
         }
 
-        // Generate a unique reference
-        $reference = 'OY-' . strtoupper(Str::random(10));
+        $reference = $this->uniquePaymentReference();
+        $macAddress = isset($data['mac_address'])
+            ? Str::upper(str_replace('-', ':', $data['mac_address']))
+            : null;
 
-        // Create a temporary cookie/session data or database entry for pending transaction
-        $email = $request->phone_number . '@oyalo.net'; // Paystack requires email
-
-        // Initialize Split Payment on Paystack
-        $paystackData = $this->paystack->initializeTransaction(
-            $email,
-            $package->price,
-            $reference,
-            route('customer.payment.callback', ['slug' => $slug]),
-            $location->paystack_subaccount
-        );
-
-        if (!$paystackData) {
-            return back()->with('error', 'Failed to connect to Paystack payment gateway. Please try again.');
-        }
-
-        // Record pending payment
-        Payment::create([
+        // Store callback context before contacting Paystack. Browser sessions
+        // are not reliable identifiers for payment callbacks or parallel tabs.
+        $payment = Payment::create([
             'location_id' => $location->id,
+            'purchaser_phone' => $data['phone_number'],
+            'requested_mac_address' => $macAddress,
+            'requested_device_name' => $data['device_name'] ?? null,
             'package_id' => $package->id,
             'amount' => $package->price,
+            'currency' => 'GHS',
             'paystack_reference' => $reference,
             'status' => 'pending',
             'platform_commission' => $package->price * ($location->commission_percentage / 100),
             'paystack_fee' => $package->price * (config('services.paystack.fee_percentage') / 100),
         ]);
 
-        // Save phone/MAC details in session to link after callback
-        session([
-            'pending_payment_phone' => $request->phone_number,
-            'pending_payment_mac' => $request->mac_address,
-            'pending_payment_device_name' => $request->device_name ?: 'My Smart Device',
-        ]);
+        $paystackData = $this->paystack->initializeTransaction(
+            $data['phone_number'].'@oyalo.net',
+            (float) $package->price,
+            $reference,
+            route('customer.payment.callback', ['slug' => $slug]),
+            $location->paystack_subaccount,
+            [
+                'payment_id' => $payment->id,
+                'location_id' => $location->id,
+                'package_id' => $package->id,
+            ],
+        );
 
-        return redirect($paystackData['authorization_url']);
-    }
+        if (!$paystackData || empty($paystackData['authorization_url'])) {
+            $payment->update(['status' => 'failed']);
 
-    /**
-     * Paystack Payment Webhook / Return Callback
-     */
-    public function paymentCallback(Request $request, $slug)
-    {
-        $location = Location::where('slug', $slug)->firstOrFail();
-        $reference = $request->input('reference') ?: $request->input('trxref');
-
-        if (!$reference) {
-            return redirect()->route('customer.portal', $slug)->with('error', 'No reference returned.');
+            return back()->withInput()->with('error', 'Failed to connect to Paystack. Please try again.');
         }
 
-        $payment = Payment::where('paystack_reference', $reference)->first();
+        return redirect()->away($paystackData['authorization_url']);
+    }
+
+    /** Verify and fulfill a Paystack return callback exactly once. */
+    public function paymentCallback(Request $request, string $slug): RedirectResponse
+    {
+        $location = Location::where('slug', $slug)->firstOrFail();
+        $reference = trim((string) ($request->input('reference') ?: $request->input('trxref')));
+
+        if ($reference === '') {
+            return redirect()->route('customer.portal', $slug)->with('error', 'No payment reference was returned.');
+        }
+
+        // Scoping by location prevents a valid reference from being processed
+        // through another hotspot's callback URL.
+        $payment = Payment::with(['customer', 'package'])
+            ->where('location_id', $location->id)
+            ->where('paystack_reference', $reference)
+            ->first();
 
         if (!$payment) {
             return redirect()->route('customer.portal', $slug)->with('error', 'Payment transaction not found.');
         }
 
-        if ($payment->status === 'success') {
-            // Already processed
-            $customer = $payment->customer;
-            return redirect()->route('customer.success', ['slug' => $slug, 'username' => $customer->username]);
+        if ($payment->status === 'success' && $payment->customer) {
+            return $this->successResponse($location, $payment);
         }
 
-        // Verify with Paystack
         $verification = $this->paystack->verifyTransaction($reference);
 
-        if ($verification && $verification['status'] === 'success') {
-            $payment->update(['status' => 'success']);
-
-            $package = $payment->package;
-            $phone = session('pending_payment_phone') ?: '0000000000';
-
-            // Check if customer exists already (renewal) or create new
-            $customer = Customer::where('phone_number', $phone)
-                                ->where('location_id', $location->id)
-                                ->first();
-
-            if (!$customer) {
-                // One voucher is used as both MikroTik username and password.
-                $voucher = $this->uniqueVoucher();
-
-                $customer = Customer::create([
-                    'location_id' => $location->id,
-                    'username' => $voucher,
-                    'password' => $voucher,
-                    'voucher_code' => $voucher,
-                    'phone_number' => $phone,
-                    'active_package_id' => $package->id,
-                    'expires_at' => Carbon::now()->addMinutes($package->duration_minutes),
-                    'status' => 'active',
-                ]);
-            } else {
-                // Update existing customer package and extend expiry
-                $currentExpiry = ($customer->expires_at && $customer->expires_at->isFuture()) 
-                    ? $customer->expires_at 
-                    : Carbon::now();
-
-                $customer->update([
-                    'active_package_id' => $package->id,
-                    'expires_at' => $currentExpiry->addMinutes($package->duration_minutes),
-                    'status' => 'active',
-                ]);
+        if (!$verification || !$this->paystack->transactionMatchesPayment($verification, $payment)) {
+            if (is_array($verification) && ($verification['status'] ?? null) !== 'success') {
+                $payment->update(['status' => 'failed']);
             }
 
-            // Link customer to payment
-            $payment->update(['customer_id' => $customer->id]);
+            Log::warning('Paystack callback verification did not match the pending payment.', [
+                'payment_id' => $payment->id,
+                'reference' => $reference,
+                'verification_status' => is_array($verification) ? ($verification['status'] ?? null) : null,
+            ]);
 
-            // Queue MikroTik command for user
-            $router = $location->routers()->where('status', 'online')->first() 
-                      ?: $location->routers()->first();
-
-            if ($router) {
-                $this->mikrotik->queueCreateUser($router, $customer);
-                $this->mikrotik->queueActiveDevices($router, $customer);
-            }
-
-            // TV / Device MAC Auto-Registration Feature (if provided during checkout)
-            $mac = session('pending_payment_mac');
-            if ($mac && $router) {
-                $cleanMac = strtoupper(str_replace('-', ':', $mac));
-                // Add device to customer
-                $device = Device::create([
-                    'customer_id' => $customer->id,
-                    'mac_address' => $cleanMac,
-                    'name' => session('pending_payment_device_name') ?: 'TV / Smart Device',
-                    'status' => 'active'
-                ]);
-
-                // Queue ADD_MAC command
-                $this->mikrotik->queueAddMac($router, $device, $customer);
-            }
-
-            // Send credentials and optionally notify the location owner by email.
-            $this->sms->sendCredentials($customer, $package->name);
-            $this->ownerNotifications->subscriptionCreated($location->loadMissing('admin'), $customer, $package, $payment->fresh());
-            app(ActivityLogger::class)->record('payment.completed', "Online subscription {$payment->paystack_reference} completed for voucher {$customer->voucher_code} at {$location->name}.", null, $request->ip());
-
-            // Clear pending session data
-            session()->forget(['pending_payment_phone', 'pending_payment_mac', 'pending_payment_device_name']);
-
-            // Queue success cookie
-            return redirect()->route('customer.success', ['slug' => $slug, 'username' => $customer->username])
-                             ->cookie('oyalo_customer_username', $customer->username, 43200); // 30 days
+            return redirect()->route('customer.portal', $slug)
+                ->with('error', 'Payment could not be verified. If you were debited, contact support with your reference.');
         }
 
-        $payment->update(['status' => 'failed']);
-        return redirect()->route('customer.portal', $slug)->with('error', 'Payment verification failed. If you were debited, please contact support.');
+        try {
+            $result = $this->paymentFulfillment->fulfill(
+                $payment,
+                session('pending_payment_phone'), // Legacy pre-migration checkout fallback.
+                $request->ip(),
+            );
+            $payment = $result['payment'];
+        } catch (Throwable $exception) {
+            Log::error('Verified Paystack payment could not be fulfilled.', [
+                'payment_id' => $payment->id,
+                'reference' => $reference,
+                'error' => $exception->getMessage(),
+            ]);
+
+            return redirect()->route('customer.portal', $slug)
+                ->with('error', 'Your payment is verified but access is still being activated. Contact support with your reference.');
+        }
+
+        return $this->successResponse($location, $payment);
     }
 
-    /**
-     * Payment Success Page (Shows details and PWA Install Guide)
-     */
-    public function showSuccess($slug, Request $request)
+    /** Show only the voucher linked to the verified payment and encrypted cookie. */
+    public function showSuccess(string $slug, Request $request)
     {
         $location = Location::where('slug', $slug)->firstOrFail();
-        $username = $request->query('username');
-        $customer = Customer::where('username', $username)->where('location_id', $location->id)->firstOrFail();
+        $payment = Payment::with('customer')
+            ->where('location_id', $location->id)
+            ->where('paystack_reference', $request->query('reference'))
+            ->where('status', 'success')
+            ->whereNotNull('customer_id')
+            ->firstOrFail();
 
-        return view('customer.success', compact('location', 'customer'));
+        $customer = $payment->customer;
+        abort_unless(
+            hash_equals((string) $customer->username, (string) $request->cookie('oyalo_customer_username')),
+            403,
+        );
+
+        return view('customer.success', compact('location', 'customer', 'payment'));
     }
 
-    /**
-     * Device registration (Smart TV / Laptop MAC Feature) from Customer Dashboard
-     */
-    public function registerDevice(Request $request, $slug)
+    /** Register a smart-device MAC against the voucher held in the cookie. */
+    public function registerDevice(Request $request, string $slug): RedirectResponse
     {
-        $request->validate([
-            'username' => 'required|exists:customers,username',
-            'mac_address' => 'required|string',
-            'device_name' => 'required|string|max:50',
+        $data = $request->validate([
+            'username' => ['required', 'string', 'exists:customers,username'],
+            'mac_address' => ['required', 'string', 'regex:/^([0-9A-Fa-f]{2}[:-]){5}[0-9A-Fa-f]{2}$/'],
+            'device_name' => ['required', 'string', 'max:50'],
         ]);
 
-        $location = Location::where('slug', $slug)->firstOrFail();
-        $customer = Customer::where('username', $request->username)
-                            ->where('location_id', $location->id)
-                            ->firstOrFail();
-        abort_unless(hash_equals((string) $customer->username, (string) $request->cookie('oyalo_customer_username')), 403);
+        $location = Location::where('slug', $slug)->where('status', 'active')->firstOrFail();
+        $customer = Customer::where('username', $data['username'])
+            ->where('location_id', $location->id)
+            ->firstOrFail();
 
-        if ($customer->isExpired()) {
-            return back()->with('error', 'You must have an active package to register device MAC addresses.');
+        abort_unless(
+            hash_equals((string) $customer->username, (string) $request->cookie('oyalo_customer_username')),
+            403,
+        );
+
+        if (!$customer->hasActiveAccess()) {
+            return back()->with('error', 'You must have an active package to register devices.');
         }
 
-        // Clean MAC address
-        $mac = strtoupper(trim($request->mac_address));
-        $mac = str_replace('-', ':', $mac);
-
-        // Basic MAC regex validation
-        if (!preg_match('/^([0-9A-F]{2}[:-]){5}([0-9A-F]{2})$/', $mac)) {
-            return back()->with('error', 'Invalid MAC address format. Use AA:BB:CC:DD:EE:FF');
-        }
-
-        // Check limit: e.g. Max 3 devices per account
         if ($customer->devices()->count() >= 3) {
             return back()->with('error', 'You have reached the limit of 3 registered devices.');
         }
 
-        // Create Device
+        $macAddress = Str::upper(str_replace('-', ':', $data['mac_address']));
+        $alreadyRegistered = Device::where('mac_address', $macAddress)
+            ->whereHas('customer', fn ($query) => $query->where('location_id', $location->id))
+            ->exists();
+
+        if ($alreadyRegistered) {
+            return back()->withInput()->with('error', 'This MAC address is already registered at this location.');
+        }
+
         $device = Device::create([
             'customer_id' => $customer->id,
-            'mac_address' => $mac,
-            'name' => $request->device_name,
-            'status' => 'active'
+            'mac_address' => $macAddress,
+            'name' => $data['device_name'],
+            'status' => 'active',
         ]);
 
-        // Push command to router
-        $router = $location->routers()->first();
-        if ($router) {
+        foreach ($location->routers()->get() as $router) {
             $this->mikrotik->queueAddMac($router, $device, $customer);
         }
 
-        return back()->with('success', "Device {$request->device_name} registered successfully. It will connect to the internet shortly.");
+        return back()->with('success', "Device {$device->name} registered successfully. It will connect shortly.");
     }
 
-    /**
-     * Delete/Remove Device MAC Address
-     */
-    public function removeDevice($slug, $deviceId)
+    /** Remove a smart-device MAC owned by the voucher held in the cookie. */
+    public function removeDevice(Request $request, string $slug, int $id): RedirectResponse
     {
         $location = Location::where('slug', $slug)->firstOrFail();
-        $device = Device::findOrFail($deviceId);
+        $device = Device::with('customer')->findOrFail($id);
         $customer = $device->customer;
 
-        if ($customer->location_id !== $location->id || !hash_equals((string) $customer->username, (string) $request->cookie('oyalo_customer_username'))) {
-            abort(403);
-        }
+        abort_unless(
+            (int) $customer->location_id === (int) $location->id
+                && hash_equals((string) $customer->username, (string) $request->cookie('oyalo_customer_username')),
+            403,
+        );
 
-        // Push REMOVE_MAC to router
-        $router = $location->routers()->first();
-        if ($router) {
+        foreach ($location->routers()->get() as $router) {
             $this->mikrotik->queueRemoveMac($router, $device);
         }
 
         $device->delete();
 
-        return back()->with('success', 'Device removed successfully. Router will sync the removal.');
+        return back()->with('success', 'Device removed successfully. Router removal was queued.');
     }
 
-    private function uniqueVoucher(): string
+    private function successResponse(Location $location, Payment $payment): RedirectResponse
+    {
+        $customer = $payment->customer;
+
+        return redirect()->route('customer.success', [
+            'slug' => $location->slug,
+            'reference' => $payment->paystack_reference,
+        ])->cookie('oyalo_customer_username', $customer->username, 43200);
+    }
+
+    private function uniquePaymentReference(): string
     {
         do {
-            $voucher = 'OY-'.strtoupper(Str::random(8));
-        } while (Customer::where('voucher_code', $voucher)->exists());
+            $reference = 'OY-'.Str::upper(Str::random(16));
+        } while (Payment::where('paystack_reference', $reference)->exists());
 
-        return $voucher;
+        return $reference;
     }
 }

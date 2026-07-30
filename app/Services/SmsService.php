@@ -5,6 +5,7 @@ namespace App\Services;
 use Illuminate\Support\Facades\{Http, Log};
 
 use App\Models\{Customer, SmsLog};
+use App\Support\PhoneNumber;
 
 class SmsService
 {
@@ -13,8 +14,8 @@ class SmsService
 
     public function __construct()
     {
-        $this->apiKey = env('ARKESEL_SMS_API_KEY');
-        $this->senderId = env('ARKESEL_SMS_SENDER_ID', 'OyaloWiFi');
+        $this->apiKey = config('services.arkesel.api_key');
+        $this->senderId = config('services.arkesel.sender_id', 'OyaloWiFi');
     }
 
     /** Send an SMS through Arkesel and always save the actual outcome for the owner. */
@@ -72,8 +73,6 @@ class SmsService
 
     protected function formatPhoneNumber(string $phone): string
     {
-        $phone = preg_replace('/\s+/', '', $phone);
-
-        return preg_match('/^0[0-9]{9}$/', $phone) ? '233'.substr($phone, 1) : $phone;
+        return PhoneNumber::normalize($phone) ?? preg_replace('/\s+/', '', $phone) ?? $phone;
     }
 }

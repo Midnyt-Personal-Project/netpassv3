@@ -17,6 +17,13 @@ class Package extends Model
         'share_users',
     ];
 
+    protected $casts = [
+        'price' => 'decimal:2',
+        'duration_minutes' => 'integer',
+        'data_limit_mb' => 'integer',
+        'share_users' => 'integer',
+    ];
+
     public function location()
     {
         return $this->belongsTo(Location::class);

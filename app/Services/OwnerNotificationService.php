@@ -13,10 +13,10 @@ use Illuminate\Support\Facades\Mail;
 class OwnerNotificationService
 {
     /** Send an optional sales notification and retain an auditable delivery result. */
-    public function subscriptionCreated(Location $location, Customer $customer, Package $package, Payment $payment): void
+    public function subscriptionCreated(Location $location, Customer $customer, Package $package, Payment $payment): bool
     {
         if (!$location->subscription_email_notifications || !$location->admin?->email) {
-            return;
+            return true;
         }
 
         $subject = "New Oyalo subscription — {$location->name}";
@@ -33,9 +33,13 @@ class OwnerNotificationService
                 $mail->to($location->admin->email)->subject($subject);
             });
             EmailLog::create(['location_id' => $location->id, 'customer_id' => $customer->id, 'payment_id' => $payment->id, 'to' => $location->admin->email, 'subject' => $subject, 'message' => $message, 'status' => 'sent']);
+
+            return true;
         } catch (\Throwable $exception) {
             Log::warning('Owner subscription email could not be sent.', ['location_id' => $location->id, 'error' => $exception->getMessage()]);
             EmailLog::create(['location_id' => $location->id, 'customer_id' => $customer->id, 'payment_id' => $payment->id, 'to' => $location->admin->email, 'subject' => $subject, 'message' => $message, 'status' => 'failed', 'error_message' => $exception->getMessage()]);
+
+            return false;
         }
     }
 }

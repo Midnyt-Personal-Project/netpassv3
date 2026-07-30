@@ -1,2 +1,10 @@
-/tool fetch url="http://netpassv3.test/api/router/data" http-method=get http-header-field="X-Router-ID: RTR-000001,X-Router-Token: oyalo_demo_token_east_legon_xyz" dst-path=data.json
-:put [file get data.json contents]
+# Minimal RouterOS 7 API connectivity test.
+# Replace the URL, router ID, and token before running it.
+:local baseUrl "https://wifi.oyalo.net"
+:local routerId "RTR-REPLACE-ME"
+:local routerToken "oyalo_REPLACE_ME"
+:local headers ("X-Router-ID: ".$routerId.",X-Router-Token: ".$routerToken)
+
+:local result [/tool fetch url=($baseUrl."/api/router/data") http-method=get \
+    http-header-field=$headers output=user as-value check-certificate=yes]
+:put ($result->"data")

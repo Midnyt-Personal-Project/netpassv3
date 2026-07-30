@@ -1,58 +1,130 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# Oyalo NetPass
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+A Laravel application for selling Paystack-backed MikroTik hotspot vouchers, managing packages and devices, and synchronizing access commands with RouterOS.
 
-## About Laravel
+## Voucher behavior
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+Every completed sale creates a new, independent voucher. A purchaser's phone number is used for delivery and payment context only; it is **not** an account identifier. Therefore, two successful purchases made with the same phone number produce two customer/voucher records with different codes and separate expiry times.
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+A voucher is used as both the MikroTik username and password.
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+## Local setup
 
-## Learning Laravel
+Requirements:
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework.
-
-In addition, [Laracasts](https://laracasts.com) contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
-
-You can also watch bite-sized lessons with real-world projects on [Laravel Learn](https://laravel.com/learn), where you will be guided through building a Laravel application from scratch while learning PHP fundamentals.
-
-## Agentic Development
-
-Laravel's predictable structure and conventions make it ideal for AI coding agents like Claude Code, Cursor, and GitHub Copilot. Install [Laravel Boost](https://laravel.com/docs/ai) to supercharge your AI workflow:
+- PHP 8.3+
+- Composer
+- Node.js/npm
+- SQLite or another Laravel-supported database
 
 ```bash
-composer require laravel/boost --dev
-
-php artisan boost:install
+composer run setup
+composer run dev
 ```
 
-Boost provides your agent 15+ tools and skills that help agents build Laravel applications while following best practices.
+Copy `.env.example` to `.env` and configure at least:
 
-## Contributing
+```dotenv
+APP_URL=https://your-public-host.example
+PAYSTACK_SECRET_KEY=sk_live_...
+ARKESEL_SMS_API_KEY=...
+ARKESEL_SMS_SENDER_ID=OyaloWiFi
+```
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+A location also needs a valid Paystack subaccount before its online checkout is enabled.
 
-## Code of Conduct
+Run the scheduler every minute in production. It expires vouchers, queues MikroTik removal commands, and marks routers offline when their heartbeat becomes stale:
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+```cron
+* * * * * cd /path/to/netpassv3 && php artisan schedule:run >> /dev/null 2>&1
+```
 
-## Security Vulnerabilities
+A queue worker is required for voucher SMS messages, expiry SMS messages, and owner emails. Keep it alive with Supervisor or systemd:
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+```bash
+php artisan queue:work --sleep=1 --tries=3 --timeout=60
+```
 
-## License
+Run tests with:
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+```bash
+composer test
+```
+
+## Payment processing
+
+Checkout context (phone, optional MAC/device, package, amount, and location) is stored on the pending payment before redirecting to Paystack. The callback:
+
+1. Looks up the reference within the URL's location.
+2. verifies the transaction directly with Paystack;
+3. checks reference, amount, and currency against the stored payment;
+4. locks the payment and fulfills it transactionally;
+5. creates exactly one new voucher and links it to the payment; and
+6. queues the voucher on every router belonging to the location.
+
+Callbacks are idempotent: replaying a completed reference does not create another voucher.
+
+Configure Paystack's dashboard webhook URL as:
+
+```text
+https://your-public-host.example/api/paystack/webhook
+```
+
+The webhook verifies Paystack's SHA-512 signature and uses the same idempotent fulfillment path as the browser callback. This ensures a paid voucher is still issued if the customer closes the browser before returning from Paystack.
+
+## Router API
+
+All router requests require these headers:
+
+```http
+X-Router-ID: RTR-000001
+X-Router-Token: your-router-token
+```
+
+Endpoints:
+
+| Method | Endpoint | Purpose |
+|---|---|---|
+| `POST` | `/api/router/heartbeat` | Mark the router online |
+| `GET` | `/api/router/commands` | Fetch up to 100 pending commands as JSON |
+| `POST` | `/api/router/commands/{id}/ack` | Acknowledge with `completed` or `failed` |
+| `GET` | `/api/router/data` | Fetch router details and pending commands |
+
+Example command response:
+
+```json
+{
+  "status": "success",
+  "router_id": "RTR-000001",
+  "commands": [
+    {
+      "id": 42,
+      "type": "CREATE_USER",
+      "payload": {
+        "username": "OY-ABC123DEF4",
+        "password": "OY-ABC123DEF4",
+        "profile": "oyalo-1hour-8",
+        "duration_minutes": 60
+      },
+      "created_at": "2026-07-30T10:00:00Z"
+    }
+  ]
+}
+```
+
+`mikrotik_sync.rsc` is a RouterOS 7.13+ polling script. Replace its URL, router ID, and token, import it, and schedule it at the interval appropriate for the hotspot. Keep TLS certificate checking enabled and install the required CA certificate on the router.
+
+## Deployment
+
+After pulling an update:
+
+```bash
+composer install --no-dev --optimize-autoloader
+php artisan migrate --force
+php artisan config:cache
+php artisan route:cache
+npm ci
+npm run build
+```
+
+Keep the queue worker running, and monitor `storage/logs/laravel.log`, `php artisan queue:failed`, failed SMS/email entries, pending router commands, stale routers, and pending payments.

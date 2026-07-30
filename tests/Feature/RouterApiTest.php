@@ -36,15 +36,21 @@ it('accepts a heartbeat and only returns commands for the authenticated router',
     expect($router->fresh()->status)->toBe('online')->and($router->fresh()->model)->toBe('hAP ax2');
 
     $this->getJson('/api/router/commands', routerHeaders($router))->assertOk()
+        ->assertJsonPath('status', 'success')
         ->assertJsonPath('router_id', $router->router_id)
         ->assertJsonCount(1, 'commands')
-        ->assertJsonPath('commands.0.id', $ownCommand->id);
+        ->assertJsonPath('commands.0.id', $ownCommand->id)
+        ->assertJsonPath('commands.0.type', 'CREATE_USER')
+        ->assertJsonPath('commands.0.payload.username', 'OY1');
 });
 
 it('only allows a router to acknowledge its own pending command with a valid status', function () {
     $router = testRouter();
+    $otherRouter = testRouter();
     $command = RouterCommand::create(['router_id' => $router->id, 'command_type' => 'CREATE_USER', 'payload' => ['username' => 'OY1']]);
 
+    $this->postJson("/api/router/commands/{$command->id}/ack", ['status' => 'completed'], routerHeaders($otherRouter))->assertNotFound();
+    $this->postJson("/api/router/commands/{$command->id}/ack", ['status' => 'not-valid'], routerHeaders($router))->assertUnprocessable();
     $this->postJson("/api/router/commands/{$command->id}/ack", ['status' => 'completed'], routerHeaders($router))->assertOk();
     expect($command->fresh()->status)->toBe('completed')->and($command->fresh()->executed_at)->not->toBeNull();
     $this->postJson("/api/router/commands/{$command->id}/ack", ['status' => 'completed'], routerHeaders($router))->assertStatus(409);

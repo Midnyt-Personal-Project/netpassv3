@@ -93,47 +93,22 @@ class ApiController extends Controller
 
         $commands = $router->pendingCommands()->oldest()->limit(100)->get();
 
-        $lines = $commands->map(function (RouterCommand $command) {
-            $p = $command->payload ?? [];
-            switch ($command->command_type) {
-                case 'CREATE_PROFILE':
-                    // Format: CREATE_PROFILE|id|profile_name|duration_formatted|share_users
-                    return $command->command_type . '|' . $command->id . '|'
-                        . ($p['name'] ?? '') . '|' . ($p['duration_formatted'] ?? '') . '|'
-                        . ($p['share_users'] ?? '');
-
-                case 'CREATE_USER':
-                    // Format: CREATE_USER|id|username|username|profile
-                    return $command->command_type . '|' . $command->id . '|'
-                        . ($p['username'] ?? '') . '|' . ($p['username'] ?? '') . '|'
-                        . ($p['profile'] ?? '');
-
-                case 'ADD_MAC':
-                    // Format: ADD_MAC|id|mac|profile_name (use profile if available, else username)
-                    return $command->command_type . '|' . $command->id . '|'
-                        . ($p['mac'] ?? '') . '|' . ($p['profile'] ?? $p['username'] ?? '');
-
-                case 'REMOVE_MAC':
-                    // Format: REMOVE_MAC|id|mac
-                    return $command->command_type . '|' . $command->id . '|'
-                        . ($p['mac'] ?? '');
-
-                case 'REMOVE_USER':
-                case 'DISABLE_USER':
-                    // Format: REMOVE_USER|id|username  or  DISABLE_USER|id|username
-                    return $command->command_type . '|' . $command->id . '|'
-                        . ($p['username'] ?? '');
-
-                default:
-                    return $command->command_type . '|' . $command->id . '|'
-                        . json_encode($p);
-            }
-        })->implode("\n");
-
-        return response($lines, 200)->header('Content-Type', 'text/plain');
+        // Return one consistent JSON contract. The old implementation emitted
+        // pipe-delimited text while the tests and MikroTik sync script expected
+        // JSON, which made command polling fail in production.
+        return response()->json([
+            'status' => 'success',
+            'router_id' => $router->router_id,
+            'commands' => $commands->map(fn (RouterCommand $command) => [
+                'id' => $command->id,
+                'type' => $command->command_type,
+                'payload' => $command->payload,
+                'created_at' => $command->created_at?->toIso8601String(),
+            ])->values(),
+        ])->header('Cache-Control', 'no-store');
     }
 
-    public function acknowledgeCommand(Request $request, int $commandId)
+    public function acknowledgeCommand(Request $request, int $id)
     {
         $router = $this->authenticateRouter($request);
         if (!$router) {
@@ -141,17 +116,24 @@ class ApiController extends Controller
         }
 
         $data = $request->validate(['status' => ['required', 'in:completed,failed']]);
-        $command = RouterCommand::whereKey($commandId)->where('router_id', $router->id)->first();
+        $command = RouterCommand::whereKey($id)->where('router_id', $router->id)->first();
 
         if (!$command) {
             return response()->json(['error' => 'Command not found'], 404);
         }
 
-        if ($command->status !== 'pending') {
+        // The conditional update makes acknowledgements safe when a router
+        // retries while the first response is still in flight.
+        $updated = RouterCommand::whereKey($command->id)
+            ->where('router_id', $router->id)
+            ->where('status', 'pending')
+            ->update(['status' => $data['status'], 'executed_at' => now()]);
+
+        if (!$updated) {
             return response()->json(['error' => 'Command was already acknowledged'], 409);
         }
 
-        $command->update(['status' => $data['status'], 'executed_at' => now()]);
+        $command->refresh();
 
         $this->activityLogger->record(
             'router.command_acknowledged',
@@ -162,7 +144,7 @@ class ApiController extends Controller
 
         return response()->json([
             'status' => 'success',
-            'message' => "Command {$commandId} status updated to {$data['status']}"
+            'message' => "Command {$id} status updated to {$data['status']}"
         ]);
     }
 

@@ -51,11 +51,13 @@ class Customer extends Model
         return $this->hasMany(SmsLog::class);
     }
 
-    public function isExpired()
+    public function isExpired(): bool
     {
-        if (!$this->expires_at) {
-            return true;
-        }
-        return $this->expires_at->isPast();
+        return !$this->expires_at || $this->expires_at->isPast();
+    }
+
+    public function hasActiveAccess(): bool
+    {
+        return $this->status === 'active' && !$this->isExpired();
     }
 }

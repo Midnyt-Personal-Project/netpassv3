@@ -89,10 +89,10 @@
                                 <td class="py-3 text-white">{{ $cust->activePackage ? $cust->activePackage->name : 'N/A' }}</td>
                                 <td class="py-3 text-slate-400 text-xs">{{ $cust->expires_at ? $cust->expires_at->format('d M H:i') : 'Unlimited' }}</td>
                                 <td class="py-3">
-                                    @if($cust->isExpired())
-                                        <span class="inline-block px-2 py-0.5 rounded text-xs bg-rose-500/10 text-rose-400">Expired</span>
-                                    @else
+                                    @if($cust->hasActiveAccess())
                                         <span class="inline-block px-2 py-0.5 rounded text-xs bg-emerald-500/10 text-emerald-400">Active</span>
+                                    @else
+                                        <span class="inline-block px-2 py-0.5 rounded text-xs bg-rose-500/10 text-rose-400">{{ ucfirst($cust->status === 'active' ? 'expired' : $cust->status) }}</span>
                                     @endif
                                 </td>
                             </tr>

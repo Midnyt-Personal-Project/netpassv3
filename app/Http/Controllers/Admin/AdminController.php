@@ -4,12 +4,15 @@ namespace App\Http\Controllers\Admin;
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
-use Carbon\Carbon;
 
 use App\Http\Controllers\Controller;
-use App\Models\{ActivityLog, Announcement, Customer, Device, EmailLog, Location, Package, Payment, RouterCommand, SmsLog};
-use App\Services\{ActivityLogger, MikroTikService, OwnerNotificationService, SmsService};
+use App\Jobs\SendOwnerSubscriptionEmail;
+use App\Jobs\SendSubscriptionCredentialsSms;
+use App\Models\{ActivityLog, Announcement, Customer, Device, EmailLog, Location, Package, Payment, SmsLog};
+use App\Services\{ActivityLogger, MikroTikService, SubscriptionIssuer};
+use App\Support\PhoneNumber;
 
 class AdminController extends Controller
 {
@@ -118,7 +121,7 @@ class AdminController extends Controller
     /**
      * Create a new package and queue the profile creation on the router.
      */
-    public function createPackage(Request $request)
+    public function createPackage(Request $request, MikroTikService $mikrotik)
     {
         $data = $request->validate([
             'location_id' => 'required|integer|exists:locations,id',
@@ -147,29 +150,9 @@ class AdminController extends Controller
 
         $package = Package::create($data);
 
-        // Queue profile creation on the first router of this location
-        $router = Location::find($package->location_id)?->routers()?->first();
-        if ($router) {
-            $mikrotikService = new MikroTikService();
-            RouterCommand::create([
-                'router_id' => $router->id,
-                'command_type' => 'CREATE_PROFILE',
-                'payload' => [
-                    'name' => $mikrotikService->profileName($package),
-                    'speed_down' => $package->speed_limit_down ?: '0',
-                    'speed_up' => $package->speed_limit_up ?: '0',
-                    'duration_minutes' => $package->duration_minutes,
-                    'duration_formatted' => sprintf(
-                        '%dd %02d:%02d:%02d',
-                        floor($package->duration_minutes / 1440),
-                        floor(($package->duration_minutes % 1440) / 60),
-                        $package->duration_minutes % 60,
-                        0
-                    ),
-                    'share_users' => $package->share_users ?? 1,
-                ],
-                'status' => 'pending',
-            ]);
+        // Every router at the location needs the package profile.
+        foreach ($package->location->routers()->get() as $router) {
+            $mikrotik->queueCreateProfile($router, $package);
         }
 
         app(ActivityLogger::class)->record(
@@ -205,8 +188,7 @@ class AdminController extends Controller
         $newStatus = $device->status === 'active' ? 'blocked' : 'active';
         $device->update(['status' => $newStatus]);
 
-        $router = $device->customer->location->routers()->first();
-        if ($router) {
+        foreach ($device->customer->location->routers()->get() as $router) {
             if ($newStatus === 'blocked') {
                 $mikrotik->queueRemoveMac($router, $device);
             } else {
@@ -345,96 +327,61 @@ class AdminController extends Controller
     /**
      * Create a new subscription manually (admin/owner) and sync with router.
      */
-    public function createSubscription(Request $request, MikroTikService $mikrotik, SmsService $sms, OwnerNotificationService $ownerNotifications)
+    public function createSubscription(
+        Request $request,
+        SubscriptionIssuer $issuer,
+    )
     {
+        $normalizedPhone = PhoneNumber::normalize($request->input('phone_number'));
+        $request->merge(['phone_number' => $normalizedPhone ?? $request->input('phone_number')]);
+
         $data = $request->validate([
             'location_id' => 'required|integer|exists:locations,id',
             'package_id' => 'required|integer|exists:packages,id',
-            'phone_number' => 'required|string|max:30',
+            'phone_number' => ['required', 'string', 'regex:/^233[0-9]{9}$/'],
             'device_name' => 'nullable|required_with:mac_address|string|max:50',
             'mac_address' => ['nullable', 'required_with:device_name', 'string', 'regex:/^([0-9A-Fa-f]{2}[:-]){5}[0-9A-Fa-f]{2}$/'],
+        ], [
+            'phone_number.regex' => 'Enter a valid Ghana phone number, for example 0244123456.',
         ]);
 
         $location = $this->ensureManagedLocation((int) $data['location_id']);
         $package = Package::whereKey($data['package_id'])->where('location_id', $location->id)->firstOrFail();
+        $macAddress = isset($data['mac_address'])
+            ? strtoupper(str_replace('-', ':', $data['mac_address']))
+            : null;
 
-        // Find or create customer
-        $customer = Customer::where('location_id', $location->id)
-            ->where('phone_number', $data['phone_number'])
-            ->first();
+        [$customer, $payment] = DB::transaction(function () use ($data, $location, $package, $macAddress, $issuer): array {
+            // Each sale creates an independent voucher even when this phone
+            // number has bought at the same location before.
+            $customer = $issuer->issue(
+                $location,
+                $package,
+                $data['phone_number'],
+                $macAddress,
+                $data['device_name'] ?? null,
+            );
 
-        if (!$customer) {
-            $voucher = $this->uniqueVoucher();
-            $customer = Customer::create([
+            $payment = Payment::create([
                 'location_id' => $location->id,
-                'username' => $voucher,
-                'password' => $voucher,
-                'voucher_code' => $voucher,
-                'phone_number' => $data['phone_number'],
-                'status' => 'active',
-            ]);
-        }
-
-        // Handle MAC address if provided
-        $macAddress = null;
-        if (!empty($data['mac_address'])) {
-            $macAddress = strtoupper(str_replace('-', ':', $data['mac_address']));
-            abort_if($customer->devices()->count() >= 3, 422, 'This customer already has the maximum of 3 registered devices.');
-            if (Device::where('mac_address', $macAddress)->exists()) {
-                return back()->withErrors(['mac_address' => 'This MAC address is already registered to another customer.']);
-            }
-        }
-
-        // Extend or start subscription
-        $start = $customer->expires_at?->isFuture() ? $customer->expires_at : Carbon::now();
-        $customer->update([
-            'active_package_id' => $package->id,
-            'expires_at' => $start->copy()->addMinutes($package->duration_minutes),
-            'status' => 'active',
-        ]);
-
-        // Record payment
-        $payment = Payment::create([
-            'location_id' => $location->id,
-            'customer_id' => $customer->id,
-            'package_id' => $package->id,
-            'amount' => $package->price,
-            'paystack_reference' => 'MANUAL-' . strtoupper(Str::random(14)),
-            'status' => 'success',
-            'platform_commission' => $package->price * ($location->commission_percentage / 100),
-            'paystack_fee' => 0,
-        ]);
-
-        // Queue MikroTik commands
-        $router = $location->routers()->where('status', 'online')->first() ?: $location->routers()->first();
-        $customer = $customer->fresh();
-        if ($router) {
-            $mikrotik->queueCreateUser($router, $customer);
-            $mikrotik->queueActiveDevices($router, $customer);
-        }
-
-        // Register device if MAC provided
-        if ($macAddress) {
-            $device = Device::create([
                 'customer_id' => $customer->id,
-                'mac_address' => $macAddress,
-                'name' => $data['device_name'],
-                'status' => 'active',
+                'purchaser_phone' => $data['phone_number'],
+                'requested_mac_address' => $macAddress,
+                'requested_device_name' => $data['device_name'] ?? null,
+                'package_id' => $package->id,
+                'amount' => $package->price,
+                'paystack_reference' => 'MANUAL-'.Str::upper(Str::random(16)),
+                'status' => 'success',
+                'processed_at' => now(),
+                'platform_commission' => $package->price * ($location->commission_percentage / 100),
+                'paystack_fee' => 0,
             ]);
-            if ($router) {
-                $mikrotik->queueAddMac($router, $device, $customer);
-            }
-        }
 
-        // Send notifications
-        $customer = $customer->fresh();
-        $sms->sendCredentials($customer, $package->name);
-        $ownerNotifications->subscriptionCreated(
-            $location->loadMissing('admin'),
-            $customer,
-            $package,
-            $payment
-        );
+            return [$customer, $payment];
+        }, 3);
+
+        SendSubscriptionCredentialsSms::dispatch($payment->id);
+        SendOwnerSubscriptionEmail::dispatch($payment->id);
 
         app(ActivityLogger::class)->record(
             'subscription.created',
@@ -443,7 +390,7 @@ class AdminController extends Controller
 
         return back()->with(
             'success',
-            "Subscription created for {$customer->username} through {$customer->expires_at->format('M j, Y g:i A')}."
+            "New voucher {$customer->username} created through {$customer->expires_at->format('M j, Y g:i A')}."
         );
     }
 
@@ -454,11 +401,14 @@ class AdminController extends Controller
     {
         $customer = Customer::findOrFail($id);
         $this->ensureManagedLocation($customer->location_id);
-        $customer->update(['status' => 'blocked']);
+        $customer->update(['status' => 'suspended']);
 
-        $router = $customer->location->routers()->first();
-        if ($router) {
+        foreach ($customer->location->routers()->get() as $router) {
             $mikrotik->queueDisableUser($router, $customer);
+
+            foreach ($customer->activeDevices()->get() as $device) {
+                $mikrotik->queueRemoveMac($router, $device);
+            }
         }
 
         app(ActivityLogger::class)->record(
@@ -478,9 +428,12 @@ class AdminController extends Controller
         $this->ensureManagedLocation($customer->location_id);
         $customer->update(['status' => 'expired']);
 
-        $router = $customer->location->routers()->first();
-        if ($router) {
+        foreach ($customer->location->routers()->get() as $router) {
             $mikrotik->queueRemoveUser($router, $customer);
+
+            foreach ($customer->activeDevices()->get() as $device) {
+                $mikrotik->queueRemoveMac($router, $device);
+            }
         }
 
         app(ActivityLogger::class)->record(
@@ -491,15 +444,4 @@ class AdminController extends Controller
         return back()->with('success', 'Subscription removed successfully.');
     }
 
-    /**
-     * Generate a unique voucher code.
-     */
-    private function uniqueVoucher(): string
-    {
-        do {
-            $voucher = 'OY-' . strtoupper(Str::random(8));
-        } while (Customer::where('voucher_code', $voucher)->exists());
-
-        return $voucher;
-    }
 }

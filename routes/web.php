@@ -20,10 +20,10 @@ Route::prefix('h')->group(function () {
     Route::get('{slug}', [CustomerPortalController::class, 'showPortal'])->name('customer.portal');
     Route::get('{slug}/subscription-status', [CustomerPortalController::class, 'showSubscriptionStatus'])->name('customer.subscription-status');
     Route::post('{slug}/checkout', [CustomerPortalController::class, 'checkout'])->middleware('throttle:10,1')->name('customer.checkout');
-    Route::get('{slug}/callback', [CustomerPortalController::class, 'paymentCallback'])->name('customer.payment.callback');
+    Route::get('{slug}/callback', [CustomerPortalController::class, 'paymentCallback'])->middleware('throttle:30,1')->name('customer.payment.callback');
     Route::get('{slug}/success', [CustomerPortalController::class, 'showSuccess'])->name('customer.success');
-    Route::post('{slug}/device/register', [CustomerPortalController::class, 'registerDevice'])->name('customer.device.register');
-    Route::delete('{slug}/device/{id}/remove', [CustomerPortalController::class, 'removeDevice'])->name('customer.device.remove');
+    Route::post('{slug}/device/register', [CustomerPortalController::class, 'registerDevice'])->middleware('throttle:10,1')->name('customer.device.register');
+    Route::delete('{slug}/device/{id}/remove', [CustomerPortalController::class, 'removeDevice'])->middleware('throttle:10,1')->name('customer.device.remove');
 });
 
 Route::prefix('superadmin')->middleware(['auth', 'role:super_admin'])->group(function () {
@@ -48,7 +48,7 @@ Route::prefix('admin')->middleware(['auth', 'role:admin,super_admin'])->group(fu
     Route::post('announcements', [AdminController::class, 'createAnnouncement'])->name('admin.announcements.create');
     Route::get('subscriptions', [AdminController::class, 'showSubscriptions'])->name('admin.subscriptions');
     Route::post('subscriptions/create', [AdminController::class, 'createSubscription'])->name('admin.subscriptions.create');
+    Route::post('subscriptions/{id}/block', [AdminController::class, 'blockSubscription'])->name('admin.subscriptions.block');
+    Route::delete('subscriptions/{id}', [AdminController::class, 'removeSubscription'])->name('admin.subscriptions.remove');
     Route::post('locations/{location}/subscription-notifications', [AdminController::class, 'updateSubscriptionNotifications'])->name('admin.locations.subscription-notifications');
 });
-Route::post('subscriptions/block/{id}', [AdminController::class, 'blockSubscription'])->name('admin.subscriptions.block');
-Route::post('subscriptions/remove/{id}', [AdminController::class, 'removeSubscription'])->name('admin.subscriptions.remove');

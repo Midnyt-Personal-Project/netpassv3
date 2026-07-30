@@ -6,10 +6,34 @@ use App\Models\{Customer, Device, Package, Router, RouterCommand};
 
 class MikroTikService
 {
+    /** Queue a hotspot profile on a router. */
+    public function queueCreateProfile(Router $router, Package $package): RouterCommand
+    {
+        return RouterCommand::create([
+            'router_id' => $router->id,
+            'command_type' => 'CREATE_PROFILE',
+            'payload' => [
+                'name' => $this->profileName($package),
+                'speed_down' => $package->speed_limit_down ?: '0',
+                'speed_up' => $package->speed_limit_up ?: '0',
+                'duration_minutes' => $package->duration_minutes,
+                'duration_formatted' => sprintf(
+                    '%dd %02d:%02d:%02d',
+                    floor($package->duration_minutes / 1440),
+                    floor(($package->duration_minutes % 1440) / 60),
+                    $package->duration_minutes % 60,
+                    0,
+                ),
+                'share_users' => $package->share_users ?? 1,
+            ],
+            'status' => 'pending',
+        ]);
+    }
+
     /**
      * Queue user creation command.
      */
-    public function queueCreateUser(Router $router, Customer $customer)
+    public function queueCreateUser(Router $router, Customer $customer): RouterCommand
     {
         $package = $customer->activePackage;
         // Friendly, unique profile names: oyalo-2days-12, oyalo-1hour-8, etc.
@@ -39,7 +63,7 @@ class MikroTikService
     /**
      * Queue user deletion command.
      */
-    public function queueRemoveUser(Router $router, Customer $customer)
+    public function queueRemoveUser(Router $router, Customer $customer): RouterCommand
     {
         return RouterCommand::create([
             'router_id' => $router->id,
@@ -54,7 +78,7 @@ class MikroTikService
     /**
      * Queue user disabling.
      */
-    public function queueDisableUser(Router $router, Customer $customer)
+    public function queueDisableUser(Router $router, Customer $customer): RouterCommand
     {
         return RouterCommand::create([
             'router_id' => $router->id,
@@ -69,13 +93,9 @@ class MikroTikService
     /**
      * Queue MAC registration (TV/Smart devices).
      */
-    public function queueAddMac(Router $router, Device $device, Customer $customer)
+    public function queueAddMac(Router $router, Device $device, Customer $customer): RouterCommand
     {
         $package = $customer->activePackage;
-        $rateLimit = null;
-        if ($package && ($package->speed_limit_down || $package->speed_limit_up)) {
-            $rateLimit = ($package->speed_limit_down ?: '0').'/'.($package->speed_limit_up ?: '0');
-        }
 
         return RouterCommand::create([
             'router_id' => $router->id,
@@ -119,7 +139,7 @@ class MikroTikService
     /**
      * Queue MAC removal.
      */
-    public function queueRemoveMac(Router $router, Device $device)
+    public function queueRemoveMac(Router $router, Device $device): RouterCommand
     {
         return RouterCommand::create([
             'router_id' => $router->id,

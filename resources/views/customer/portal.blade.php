@@ -14,7 +14,7 @@
             </div>
         </section>
     @endif
-    @if($customer && !$customer->isExpired())
+    @if($customer && $customer->hasActiveAccess())
         <!-- CUSTOMER DASHBOARD - LOGGED IN WITH ACTIVE PLAN -->
         <div class="space-y-6">
             <!-- Active Subscription Card -->
@@ -113,13 +113,33 @@
 
             <!-- Buy Another Plan / Extend Access -->
             <div class="text-center pt-4">
-                <div class="flex flex-col items-center gap-3"><a href="{{ route('customer.subscription-status', $location->slug) }}" class="text-indigo-300 hover:text-indigo-200 text-sm font-bold underline transition">Check remaining subscription time</a><a href="#packages" onclick="document.getElementById('packages-section').classList.remove('hidden'); this.remove();" class="text-indigo-400 hover:text-indigo-300 text-sm font-bold underline transition">Want to buy another plan or extend? Click here.</a></div>
+                <div class="flex flex-col items-center gap-3"><a href="{{ route('customer.subscription-status', $location->slug) }}" class="text-indigo-300 hover:text-indigo-200 text-sm font-bold underline transition">Check remaining subscription time</a><a href="#packages" onclick="document.getElementById('packages-section').classList.remove('hidden'); this.remove();" class="text-indigo-400 hover:text-indigo-300 text-sm font-bold underline transition">Want another independent voucher? Click here.</a></div>
             </div>
         </div>
     @endif
 
+    @if($customer && !$customer->hasActiveAccess())
+        @php($displayStatus = $customer->status === 'suspended' ? 'Suspended' : 'Expired')
+        <section class="mb-8 rounded-2xl border border-rose-500/30 bg-rose-500/10 p-5 shadow-xl" aria-label="Voucher status">
+            <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                    <p class="text-xs font-extrabold uppercase tracking-wider text-rose-300">Voucher {{ $displayStatus }}</p>
+                    <p class="mt-2 font-mono text-lg font-black text-white">{{ $customer->voucher_code ?? $customer->username }}</p>
+                    <p class="mt-1 text-xs text-slate-300">
+                        @if($customer->status === 'suspended')
+                            Access has been suspended by the hotspot owner.
+                        @elseif($customer->expires_at)
+                            Access ended {{ $customer->expires_at->format('d M Y H:i') }}. The router removal command has been or will shortly be queued.
+                        @endif
+                    </p>
+                </div>
+                <a href="#packages" class="rounded-xl bg-indigo-600 px-4 py-2.5 text-center text-sm font-bold text-white hover:bg-indigo-500">Buy a new voucher</a>
+            </div>
+        </section>
+    @endif
+
     <!-- MAIN LANDING LANDING / PACKAGE SELECT SECTION -->
-    <div id="packages-section" class="{{ $customer && !$customer->isExpired() ? 'hidden mt-10 border-t border-slate-800 pt-10' : '' }} space-y-8">
+    <div id="packages-section" class="{{ $customer && $customer->hasActiveAccess() ? 'hidden mt-10 border-t border-slate-800 pt-10' : '' }} space-y-8">
         <div class="text-center max-w-xl mx-auto space-y-3">
             <h2 class="text-3xl font-black text-white tracking-tight sm:text-4xl">Select Your Internet Plan</h2>
             <p class="text-slate-400 text-sm">Select a subscription package to instantly access high-speed internet. Quick payment processing through Paystack.</p>

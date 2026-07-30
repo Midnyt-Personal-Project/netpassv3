@@ -62,9 +62,8 @@
                         <td class="px-6 py-4 whitespace-nowrap">
                             @php
                                 $statusConfig = [
-                                    'active' => ['color' => 'green', 'icon' => 'fa-circle'],
-                                    'inactive' => ['color' => 'red', 'icon' => 'fa-circle'],
-                                    'maintenance' => ['color' => 'yellow', 'icon' => 'fa-circle'],
+                                    'online' => ['color' => 'green', 'icon' => 'fa-circle'],
+                                    'offline' => ['color' => 'red', 'icon' => 'fa-circle'],
                                 ];
                                 $config = $statusConfig[$r->status] ?? ['color' => 'gray', 'icon' => 'fa-circle'];
                             @endphp
@@ -76,7 +75,9 @@
                         <td class="px-6 py-4 whitespace-nowrap">
                             <div class="flex items-center gap-1.5 text-sm text-gray-500">
                                 <i class="far fa-clock text-gray-400 text-xs"></i>
-                                <span class="font-mono text-xs">{{ $r->last_heartbeat ?? 'Never' }}</span>
+                                <span class="font-mono text-xs" title="{{ $r->last_heartbeat?->format('Y-m-d H:i:s') ?? 'Never' }}">
+                                    {{ $r->last_heartbeat?->diffForHumans() ?? 'Never' }}
+                                </span>
                             </div>
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap">
