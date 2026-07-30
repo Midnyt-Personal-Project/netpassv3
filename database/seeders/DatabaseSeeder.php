@@ -140,5 +140,43 @@ class DatabaseSeeder extends Seeder
             'name' => 'My iPhone 14',
             'status' => 'active',
         ]);
+
+        // 8. Seed Router Commands for testing
+        \App\Models\RouterCommand::create([
+            'router_id' => $router->id,
+            'command_type' => 'CREATE_PROFILE',
+            'payload' => ['name' => 'oyalo-1hour-8', 'duration_formatted' => '0d 01:00:00', 'share_users' => 2],
+            'status' => 'pending',
+        ]);
+        \App\Models\RouterCommand::create([
+            'router_id' => $router->id,
+            'command_type' => 'CREATE_USER',
+            'payload' => ['username' => 'OY-DEMO001', 'password' => 'demo', 'profile' => 'oyalo-1hour-8', 'duration_minutes' => 60],
+            'status' => 'pending',
+        ]);
+        \App\Models\RouterCommand::create([
+            'router_id' => $router->id,
+            'command_type' => 'ADD_MAC',
+            'payload' => ['mac' => 'AA:BB:CC:11:22:33', 'profile' => 'oyalo-1hour-8', 'username' => 'OY-DEMO001'],
+            'status' => 'completed',
+        ]);
+        \App\Models\RouterCommand::create([
+            'router_id' => $router->id,
+            'command_type' => 'REMOVE_MAC',
+            'payload' => ['mac' => '44:55:66:77:88:99'],
+            'status' => 'pending',
+        ]);
+        \App\Models\RouterCommand::create([
+            'router_id' => $router->id,
+            'command_type' => 'REMOVE_USER',
+            'payload' => ['username' => 'OY-DEMO001'],
+            'status' => 'pending',
+        ]);
+        \App\Models\RouterCommand::create([
+            'router_id' => $router->id,
+            'command_type' => 'DISABLE_USER',
+            'payload' => ['username' => 'OY-DEMO001'],
+            'status' => 'pending',
+        ]);
     }
 }

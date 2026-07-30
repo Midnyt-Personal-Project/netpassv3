@@ -229,7 +229,7 @@ class AdminController extends Controller
     {
         $locations = $this->getAdminLocations();
         $locationIds = $locations->pluck('id');
-        $smsLogs = SmsLog::with('customer.location')->whereHas('customer', fn ($query) => $query->whereIn('location_id', $locationIds))->latest()->take(100)->latest()->paginate(15);
+        $smsLogs = SmsLog::with('customer.location')->whereHas('customer', fn ($query) => $query->whereIn('location_id', $locationIds))->latest()->paginate(10);
         $emailLogs = EmailLog::with(['customer', 'location'])->whereIn('location_id', $locationIds)->latest()->take(100)->latest()->paginate(15);
         $activityLogs = Auth::user()->isSuperAdmin()
             ? ActivityLog::with('user')->latest()->take(100)->get()
@@ -367,7 +367,7 @@ class AdminController extends Controller
     {
         $locations = $this->getAdminLocations();
         $locationIds = $locations->pluck('id');
-        $smsLogs = SmsLog::with('customer.location')->whereHas('customer', fn ($query) => $query->whereIn('location_id', $locationIds))->latest()->take(100)->latest()->paginate(15);
+        $smsLogs = SmsLog::with('customer.location')->whereHas('customer', fn ($query) => $query->whereIn('location_id', $locationIds))->latest()->paginate(10);
         $emailLogs = EmailLog::with(['customer', 'location'])->whereIn('location_id', $locationIds)->latest()->take(100)->latest()->paginate(15);
         $activityLogs = Auth::user()->isSuperAdmin()
             ? ActivityLog::with('user')->latest()->take(100)->get()
