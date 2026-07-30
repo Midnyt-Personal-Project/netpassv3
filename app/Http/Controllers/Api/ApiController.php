@@ -97,38 +97,20 @@ class ApiController extends Controller
 
         $lines = $commands->map(function (RouterCommand $command) {
             $p = $command->payload ?? [];
-            $type = $command->command_type;
-            $id = $command->id;
-            
-            switch ($type) {
+            switch ($command->command_type) {
                 case 'CREATE_PROFILE':
-                    return $type . '|' . $id . '|' . 
-                           ($p['name'] ?? '') . '|' . 
-                           ($p['name'] ?? '') . '|' . 
-                           ($p['duration_formatted'] ?? '') . '|' . 
-                           ($p['share_users'] ?? '');
+                    return $command->command_type . '|' . $command->id . '|' . ($p['name'] ?? '') . '|' . ($p['name'] ?? '') . '|' . ($p['duration_formatted'] ?? '');
                 case 'CREATE_USER':
-                    return $type . '|' . $id . '|' . 
-                           ($p['username'] ?? '') . '|' . 
-                           ($p['username'] ?? '') . '|' . 
-                           ($p['profile'] ?? '');
+                    return $command->command_type . '|' . $command->id . '|' . ($p['username'] ?? '') . '|' . ($p['username'] ?? '') . '|' . ($p['profile'] ?? '');
                 case 'ADD_MAC':
-                    return $type . '|' . $id . '|' . 
-                           ($p['mac'] ?? '') . '|' . 
-                           ($p['username'] ?? '') . '|' . 
-                           ($p['comment'] ?? '');
+                    return $command->command_type . '|' . $command->id . '|' . ($p['mac'] ?? '') . '|' . ($p['profile'] ?? $p['username'] ?? '') . '|add';
                 case 'REMOVE_MAC':
-                    return $type . '|' . $id . '|' . 
-                           ($p['mac'] ?? '') . '|' . 
-                           ($p['mac'] ?? '') . '|remove';
+                    return $command->command_type . '|' . $command->id . '|' . ($p['mac'] ?? '') . '|' . ($p['mac'] ?? '') . '|remove';
                 case 'REMOVE_USER':
                 case 'DISABLE_USER':
-                    return $type . '|' . $id . '|' . 
-                           ($p['username'] ?? '') . '|' . 
-                           ($p['username'] ?? '') . '|' . 
-                           $type;
+                    return $command->command_type . '|' . $command->id . '|' . ($p['username'] ?? '') . '|' . ($p['username'] ?? '') . '|' . $command->command_type;
                 default:
-                    return $type . '|' . $id . '|' . json_encode($p);
+                    return $command->command_type . '|' . $command->id . '|' . json_encode($p);
             }
         })->implode("\n");
 

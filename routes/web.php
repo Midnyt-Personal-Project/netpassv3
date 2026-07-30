@@ -1,6 +1,7 @@
 <?php
 
 use Illuminate\Support\Facades\Route;
+
 use App\Http\Controllers\Admin\AdminController;
 use App\Http\Controllers\Auth\AuthController;
 use App\Http\Controllers\Customer\CustomerPortalController;
@@ -30,6 +31,7 @@ Route::prefix('superadmin')->middleware(['auth', 'role:super_admin'])->group(fun
     Route::post('admin/create', [SuperAdminController::class, 'createAdmin'])->name('superadmin.admin.create');
     Route::post('location/create', [SuperAdminController::class, 'createLocation'])->name('superadmin.location.create');
     Route::post('router/create', [SuperAdminController::class, 'createRouter'])->name('superadmin.router.create');
+    Route::get('router-commands', [SuperAdminController::class, 'showRouterCommands'])->name('superadmin.router-commands');
     Route::get('routers', [SuperAdminController::class, 'showRouters'])->name('superadmin.routers');
     Route::post('admin/{id}/toggle', [SuperAdminController::class, 'toggleAdminStatus'])->name('superadmin.admin.toggle');
 });

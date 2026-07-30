@@ -2,15 +2,13 @@
 
 namespace App\Http\Controllers\SuperAdmin;
 
-use App\Http\Controllers\Controller;
-use App\Models\User;
-use App\Models\Location;
-use App\Models\Router;
-use App\Models\Payment;
-use App\Services\ActivityLogger;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
+
+use App\Http\Controllers\Controller;
+use App\Models\{Location, Payment, Router, User};
+use App\Services\ActivityLogger;
 
 class SuperAdminController extends Controller
 {
@@ -119,6 +117,12 @@ class SuperAdminController extends Controller
     {
         $routers = \App\Models\Router::with('location')->get();
         return view('superadmin.routers', compact('routers'));
+    }
+
+    public function showRouterCommands()
+    {
+        $commands = \App\Models\RouterCommand::with('router')->latest()->get();
+        return view('superadmin.router_commands', compact('commands'));
     }
 
     public function toggleAdminStatus($id)
