@@ -455,6 +455,26 @@ class AdminController extends Controller
         return back()->with('success', "Subscription created for {$customer->username} through {$customer->expires_at->format('M j, Y g:i A')}.");
     }
 
+
+    public function blockSubscription($id, MikroTikService $mikrotik)
+    {
+        $customer = Customer::findOrFail($id);
+        $this->ensureManagedLocation($customer->location_id);
+        $customer->update(['status' => 'blocked']);
+        $router = $customer->location->routers()->first();
+        if ($router) $mikrotik->queueDisableUser($router, $customer);
+        return back()->with('success', 'Subscription blocked.');
+    }
+
+    public function removeSubscription($id, MikroTikService $mikrotik)
+    {
+        $customer = Customer::findOrFail($id);
+        $this->ensureManagedLocation($customer->location_id);
+        $customer->update(['status' => 'expired']);
+        $router = $customer->location->routers()->first();
+        if ($router) $mikrotik->queueRemoveUser($router, $customer);
+        return back()->with('success', 'Subscription removed.');
+    }
     private function uniqueVoucher(): string
     {
         do {
@@ -470,6 +490,26 @@ class AdminController extends Controller
         return back()->with('success', "Subscription created for {$customer->username} through {$customer->expires_at->format('M j, Y g:i A')}.");
     }
 
+
+    public function blockSubscription($id, MikroTikService $mikrotik)
+    {
+        $customer = Customer::findOrFail($id);
+        $this->ensureManagedLocation($customer->location_id);
+        $customer->update(['status' => 'blocked']);
+        $router = $customer->location->routers()->first();
+        if ($router) $mikrotik->queueDisableUser($router, $customer);
+        return back()->with('success', 'Subscription blocked.');
+    }
+
+    public function removeSubscription($id, MikroTikService $mikrotik)
+    {
+        $customer = Customer::findOrFail($id);
+        $this->ensureManagedLocation($customer->location_id);
+        $customer->update(['status' => 'expired']);
+        $router = $customer->location->routers()->first();
+        if ($router) $mikrotik->queueRemoveUser($router, $customer);
+        return back()->with('success', 'Subscription removed.');
+    }
     private function uniqueVoucher(): string
     {
         do {
