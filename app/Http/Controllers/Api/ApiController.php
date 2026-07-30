@@ -54,11 +54,22 @@ class ApiController extends Controller
         $commands = $router->pendingCommands()->oldest()->limit(100)->get();
 
         $lines = $commands->map(function (RouterCommand $command) {
-            $p = $command->payload;
-            if ($command->command_type === 'CREATE_USER') {
-                return $command->id . '|' . ($p['username'] ?? '') . '|' . ($p['username'] ?? '') . '|' . ($p['profile'] ?? '');
+            $p = $command->payload ?? [];
+            switch ($command->command_type) {
+                case 'CREATE_PROFILE':
+                    return $command->id . '|' . ($p['name'] ?? '') . '|' . ($p['name'] ?? '') . '|' . ($p['duration_formatted'] ?? '');
+                case 'CREATE_USER':
+                    return $command->id . '|' . ($p['username'] ?? '') . '|' . ($p['username'] ?? '') . '|' . ($p['profile'] ?? '');
+                case 'ADD_MAC':
+                    return $command->id . '|' . ($p['mac'] ?? '') . '|' . ($p['username'] ?? '') . '|' . ($p['comment'] ?? '');
+                case 'REMOVE_MAC':
+                    return $command->id . '|' . ($p['mac'] ?? '') . '|' . ($p['mac'] ?? '') . '|' . 'remove';
+                case 'REMOVE_USER':
+                case 'DISABLE_USER':
+                    return $command->id . '|' . ($p['username'] ?? '') . '|' . ($p['username'] ?? '') . '|' . $command->command_type;
+                default:
+                    return $command->id . '|' . json_encode($p);
             }
-            return $command->id . '|' . ($p['username'] ?? $p['mac'] ?? '') . '|' . ($p['username'] ?? $p['mac'] ?? '') . '|' . ($p['profile'] ?? '');
         })->implode("\n");
 
         return response($lines, 200)->header('Content-Type', 'text/plain');
