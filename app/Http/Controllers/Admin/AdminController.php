@@ -13,7 +13,12 @@ use App\Services\{ActivityLogger, MikroTikService, OwnerNotificationService, Sms
 
 class AdminController extends Controller
 {
-    /** A super admin can operate every location; an admin is restricted to their own. */
+    /**
+     * Get all locations the current admin can manage.
+     * Super admin sees all; regular admin sees only assigned locations.
+     *
+     * @return \Illuminate\Database\Eloquent\Collection
+     */
     protected function getAdminLocations()
     {
         $user = Auth::user();
@@ -23,21 +28,40 @@ class AdminController extends Controller
             : $user->locations()->orderBy('name')->get();
     }
 
+    /**
+     * Get the IDs of the locations the admin can manage.
+     *
+     * @return \Illuminate\Support\Collection
+     */
     protected function locationIds()
     {
         return $this->getAdminLocations()->pluck('id');
     }
 
+    /**
+     * Ensure the admin has permission to manage a specific location.
+     *
+     * @param int $locationId
+     * @return Location
+     *
+     * @throws \Symfony\Component\HttpKernel\Exception\HttpException
+     */
     protected function ensureManagedLocation(int $locationId): Location
     {
         abort_unless($this->locationIds()->contains($locationId), 403, 'You cannot manage this location.');
+
         return Location::findOrFail($locationId);
     }
 
-    public function dashboard()
+    /**
+     * Dashboard with statistics and paginated tables with search.
+     */
+    public function dashboard(Request $request)
     {
         $locations = $this->getAdminLocations();
         $locationIds = $locations->pluck('id');
+
+        // Statistics
         $stats = [
             'total_packages' => Package::whereIn('location_id', $locationIds)->count(),
             'total_customers' => Customer::whereIn('location_id', $locationIds)->count(),
@@ -48,32 +72,62 @@ class AdminController extends Controller
             'total_revenue' => Payment::whereIn('location_id', $locationIds)
                 ->where('status', 'success')
                 ->sum('amount'),
-            'total_devices' => Device::whereHas('customer', fn ($query) => $query->whereIn('location_id', $locationIds))->count(),
+            'total_devices' => Device::whereHas('customer', fn ($q) => $q->whereIn('location_id', $locationIds))->count(),
         ];
-        $payments = Payment::with(['customer', 'package', 'location'])
+
+        // Payments – with search
+        $paymentSearch = $request->query('payment_search');
+        $paymentsQuery = Payment::with(['customer', 'package', 'location'])
             ->whereIn('location_id', $locationIds)
-            ->latest()
-            ->take(10)
-            ->get();
-        $customers = Customer::with(['activePackage', 'location'])
-            ->whereIn('location_id', $locationIds)
-            ->latest()
-            ->take(10)
-            ->get();
+            ->where('status', 'success');
+
+        if ($paymentSearch) {
+            $paymentsQuery->where(function ($q) use ($paymentSearch) {
+                $q->where('paystack_reference', 'LIKE', "%{$paymentSearch}%")
+                    ->orWhereHas('package', fn ($p) => $p->where('name', 'LIKE', "%{$paymentSearch}%"))
+                    ->orWhereHas('customer', fn ($c) => $c->where('username', 'LIKE', "%{$paymentSearch}%")
+                        ->orWhere('phone_number', 'LIKE', "%{$paymentSearch}%"));
+            });
+        }
+
+        $payments = $paymentsQuery->latest()->paginate(10, ['*'], 'payment_page');
+
+        // Customers – with search
+        $customerSearch = $request->query('customer_search');
+        $customersQuery = Customer::with(['activePackage', 'location'])
+            ->whereIn('location_id', $locationIds);
+
+        if ($customerSearch) {
+            $customersQuery->where(function ($q) use ($customerSearch) {
+                $q->where('username', 'LIKE', "%{$customerSearch}%")
+                    ->orWhere('phone_number', 'LIKE', "%{$customerSearch}%")
+                    ->orWhere('voucher_code', 'LIKE', "%{$customerSearch}%")
+                    ->orWhereHas('activePackage', fn ($p) => $p->where('name', 'LIKE', "%{$customerSearch}%"));
+            });
+        }
+
+        $customers = $customersQuery->latest()->paginate(10, ['*'], 'customer_page');
 
         return view('admin.dashboard', compact('stats', 'payments', 'customers', 'locations'));
     }
 
+    /**
+     * List all packages with pagination.
+     */
     public function showPackages()
     {
         $locations = $this->getAdminLocations();
         $packages = Package::whereIn('location_id', $locations->pluck('id'))
             ->with('location')
-            ->get();
+            ->latest()
+            ->paginate(15);
 
         return view('admin.packages', compact('packages', 'locations'));
     }
 
+    /**
+     * Create a new package and queue the profile creation on the router.
+     */
     public function createPackage(Request $request)
     {
         $data = $request->validate([
@@ -136,17 +190,23 @@ class AdminController extends Controller
         return back()->with('success', 'Package created successfully.');
     }
 
+    /**
+     * List all devices with pagination.
+     */
     public function showDevices()
     {
         $locationIds = $this->locationIds();
         $devices = Device::whereHas('customer', fn ($query) => $query->whereIn('location_id', $locationIds))
             ->with('customer.location')
             ->latest()
-            ->get();
+            ->paginate(15);
 
         return view('admin.devices', compact('devices'));
     }
 
+    /**
+     * Toggle device status (active/blocked) and sync with router.
+     */
     public function toggleDeviceStatus($id, MikroTikService $mikrotik)
     {
         $device = Device::with('customer.location')->findOrFail($id);
@@ -172,6 +232,9 @@ class AdminController extends Controller
         return back()->with('success', "Device status changed to {$device->status}.");
     }
 
+    /**
+     * Toggle subscription email notifications for a location.
+     */
     public function updateSubscriptionNotifications(Request $request, Location $location)
     {
         $this->ensureManagedLocation($location->id);
@@ -189,6 +252,9 @@ class AdminController extends Controller
         );
     }
 
+    /**
+     * List announcements with pagination.
+     */
     public function showAnnouncements()
     {
         $locations = $this->getAdminLocations();
@@ -196,12 +262,14 @@ class AdminController extends Controller
         $announcements = Announcement::with('location')
             ->where(fn ($query) => $query->whereNull('location_id')->orWhereIn('location_id', $locationIds))
             ->latest()
-            ->take(30)
-            ->get();
+            ->paginate(15);
 
         return view('admin.announcements', compact('locations', 'announcements'));
     }
 
+    /**
+     * Create a new announcement (global or location-specific).
+     */
     public function createAnnouncement(Request $request)
     {
         $data = $request->validate([
@@ -237,6 +305,9 @@ class AdminController extends Controller
         );
     }
 
+    /**
+     * Show logs (SMS, email, activity) with pagination.
+     */
     public function showLogs()
     {
         $locations = $this->getAdminLocations();
@@ -245,22 +316,23 @@ class AdminController extends Controller
         $smsLogs = SmsLog::with('customer.location')
             ->whereHas('customer', fn ($query) => $query->whereIn('location_id', $locationIds))
             ->latest()
-            ->take(100)
-            ->get();
+            ->paginate(15);
 
         $emailLogs = EmailLog::with(['customer', 'location'])
             ->whereIn('location_id', $locationIds)
             ->latest()
-            ->take(100)
-            ->get();
+            ->paginate(15);
 
         $activityLogs = Auth::user()->isSuperAdmin()
-            ? ActivityLog::with('user')->latest()->take(100)->get()
-            : ActivityLog::with('user')->where('user_id', Auth::id())->latest()->take(100)->get();
+            ? ActivityLog::with('user')->latest()->paginate(15)
+            : ActivityLog::with('user')->where('user_id', Auth::id())->latest()->paginate(15);
 
         return view('admin.logs', compact('smsLogs', 'emailLogs', 'activityLogs'));
     }
 
+    /**
+     * Show subscriptions with pagination.
+     */
     public function showSubscriptions()
     {
         $locations = $this->getAdminLocations();
@@ -269,18 +341,20 @@ class AdminController extends Controller
         $packages = Package::whereIn('location_id', $locationIds)
             ->with('location')
             ->orderBy('name')
-            ->get();
+            ->get(); // for the dropdown form
 
         $subscriptions = Payment::with(['customer', 'package', 'location'])
             ->whereIn('location_id', $locationIds)
             ->where('status', 'success')
             ->latest()
-            ->paginate(15); // using pagination as per the newer version
+            ->paginate(15);
 
         return view('admin.subscriptions', compact('locations', 'packages', 'subscriptions'));
     }
 
-    /** Create or renew a customer subscription without requiring online checkout. */
+    /**
+     * Create a new subscription manually (admin/owner) and sync with router.
+     */
     public function createSubscription(Request $request, MikroTikService $mikrotik, SmsService $sms, OwnerNotificationService $ownerNotifications)
     {
         $data = $request->validate([
@@ -383,6 +457,11 @@ class AdminController extends Controller
         );
     }
 
+    /**
+     * Generate a unique voucher code.
+     *
+     * @return string
+     */
     private function uniqueVoucher(): string
     {
         do {
