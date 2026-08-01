@@ -40,6 +40,7 @@
                         <th class="pb-3">Router</th>
                         <th class="pb-3">Type</th>
                         <th class="pb-3">Payload</th>
+                        <th class="pb-3">Script</th>
                         <th class="pb-3">Status</th>
                         <th class="pb-3">Created</th>
                     </tr>
@@ -58,6 +59,9 @@
                                 <pre class="text-xs text-slate-400 bg-slate-800 p-2 rounded max-h-24 overflow-y-auto">{{ json_encode($c->payload, JSON_PRETTY_PRINT) }}</pre>
                             </td>
                             <td class="py-3">
+                                <pre class="text-xs text-indigo-300 bg-slate-800 p-2 rounded max-h-24 overflow-y-auto font-mono whitespace-pre-wrap">{{ $c->script }}</pre>
+                            </td>
+                            <td class="py-3">
                                 @php
                                     $statusColors = [
                                         'pending' => 'bg-yellow-500/10 text-yellow-400',
@@ -73,7 +77,7 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="6" class="py-10 text-center text-slate-500">No router commands found.</td>
+                            <td colspan="7" class="py-10 text-center text-slate-500">No router commands found.</td>
                         </tr>
                     @endforelse
                 </tbody>

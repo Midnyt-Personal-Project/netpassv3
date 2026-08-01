@@ -102,6 +102,7 @@ class ApiController extends Controller
             'commands' => $commands->map(fn (RouterCommand $command) => [
                 'id' => $command->id,
                 'type' => $command->command_type,
+                'script' => $command->script,
                 'payload' => $command->payload,
                 'created_at' => $command->created_at?->toIso8601String(),
             ])->values(),
@@ -167,6 +168,7 @@ class ApiController extends Controller
             'commands' => $commands->map(fn ($c) => [
                 'id' => $c->id,
                 'type' => $c->command_type,
+                'script' => $c->script,
                 'payload' => $c->payload,
                 'status' => $c->status,
             ])->values(),

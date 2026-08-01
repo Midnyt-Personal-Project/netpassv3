@@ -33,90 +33,15 @@
 
 :foreach command in=$commands do={
     :local commandId ($command->"id")
-    :local commandType ($command->"type")
-    :local payload ($command->"payload")
+    :local commandScript ($command->"script")
     :local commandStatus "completed"
 
     :onerror commandError in={
-        :if (($commandType != "CREATE_PROFILE") && ($commandType != "CREATE_USER") && \
-            ($commandType != "ADD_MAC") && ($commandType != "REMOVE_MAC") && \
-            ($commandType != "DISABLE_USER") && ($commandType != "REMOVE_USER")) do={
-            :error ("Unsupported command type ".$commandType)
+        :if ([:len $commandScript] = 0) do={
+            :error ("Missing script for command ".$commandId)
         }
-
-        :if ($commandType = "CREATE_PROFILE") do={
-            :local ProfileName ($payload->"name")
-            :local SpeedDown ($payload->"speed_down")
-            :local SpeedUp ($payload->"speed_up")
-            :local SharedUsers ($payload->"share_users")
-            :local RateLimit ""
-            :if (($SpeedDown != "0") || ($SpeedUp != "0")) do={
-                :set RateLimit ($SpeedDown."/".$SpeedUp)
-            }
-
-            :local ProfileIds [/ip hotspot user profile find where name=$ProfileName]
-            :if ([:len $ProfileIds] = 0) do={
-                /ip hotspot user profile add name=$ProfileName rate-limit=$RateLimit shared-users=$SharedUsers
-            } else={
-                /ip hotspot user profile set $ProfileIds rate-limit=$RateLimit shared-users=$SharedUsers
-            }
-        }
-
-        :if ($commandType = "CREATE_USER") do={
-            :local VoucherName ($payload->"username")
-            :local UserPassword ($payload->"password")
-            :local UserProfile ($payload->"profile")
-            :local DurationMinutes ($payload->"duration_minutes")
-            :local UserIds [/ip hotspot user find where name=$VoucherName]
-
-            :if ([:len $UserIds] = 0) do={
-                /ip hotspot user add name=$VoucherName password=$UserPassword profile=$UserProfile \
-                    limit-uptime=($DurationMinutes."m") comment="Managed by Oyalo"
-            } else={
-                /ip hotspot user set $UserIds password=$UserPassword profile=$UserProfile disabled=no \
-                    limit-uptime=($DurationMinutes."m") comment="Managed by Oyalo"
-                /ip hotspot user reset-counters $UserIds
-            }
-        }
-
-        :if ($commandType = "ADD_MAC") do={
-            :local MacAddress ($payload->"mac")
-            :local VoucherName ($payload->"username")
-            :local BindingIds [/ip hotspot ip-binding find where mac-address=$MacAddress]
-
-            :if ([:len $BindingIds] = 0) do={
-                /ip hotspot ip-binding add mac-address=$MacAddress type=bypassed comment=("Oyalo:".$VoucherName)
-            } else={
-                /ip hotspot ip-binding set $BindingIds type=bypassed disabled=no comment=("Oyalo:".$VoucherName)
-            }
-        }
-
-        :if ($commandType = "REMOVE_MAC") do={
-            :local MacAddress ($payload->"mac")
-            # Do not remove an unrelated binding that was created manually.
-            :foreach BindingId in=[/ip hotspot ip-binding find where mac-address=$MacAddress] do={
-                :local BindingComment [/ip hotspot ip-binding get $BindingId comment]
-                :if ([:pick $BindingComment 0 6] = "Oyalo:") do={
-                    /ip hotspot ip-binding remove $BindingId
-                }
-            }
-        }
-
-        :if ($commandType = "DISABLE_USER") do={
-            :local VoucherName ($payload->"username")
-            :local UserIds [/ip hotspot user find where name=$VoucherName]
-            :if ([:len $UserIds] > 0) do={ /ip hotspot user set $UserIds disabled=yes }
-            :local ActiveIds [/ip hotspot active find where user=$VoucherName]
-            :if ([:len $ActiveIds] > 0) do={ /ip hotspot active remove $ActiveIds }
-        }
-
-        :if ($commandType = "REMOVE_USER") do={
-            :local VoucherName ($payload->"username")
-            :local ActiveIds [/ip hotspot active find where user=$VoucherName]
-            :if ([:len $ActiveIds] > 0) do={ /ip hotspot active remove $ActiveIds }
-            :local UserIds [/ip hotspot user find where name=$VoucherName]
-            :if ([:len $UserIds] > 0) do={ /ip hotspot user remove $UserIds }
-        }
+        :local scriptFn [:parse $commandScript]
+        $scriptFn
     } do={
         :set commandStatus "failed"
         :log error ("Oyalo command ".$commandId." failed: ".$commandError)

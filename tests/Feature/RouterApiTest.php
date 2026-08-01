@@ -41,7 +41,32 @@ it('accepts a heartbeat and only returns commands for the authenticated router',
         ->assertJsonCount(1, 'commands')
         ->assertJsonPath('commands.0.id', $ownCommand->id)
         ->assertJsonPath('commands.0.type', 'CREATE_USER')
+        ->assertJsonPath('commands.0.script', $ownCommand->script)
         ->assertJsonPath('commands.0.payload.username', 'OY1');
+});
+
+it('generates executable mikrotik scripts for all router command types', function () {
+    $router = testRouter();
+    $profileCommand = RouterCommand::create([
+        'router_id' => $router->id,
+        'command_type' => 'CREATE_PROFILE',
+        'payload' => ['name' => 'oyalo-test', 'speed_down' => '2M', 'speed_up' => '1M', 'share_users' => 1],
+    ]);
+    expect($profileCommand->script)->toContain('/ip hotspot user profile add name="oyalo-test" rate-limit="2M/1M"');
+
+    $userCommand = RouterCommand::create([
+        'router_id' => $router->id,
+        'command_type' => 'CREATE_USER',
+        'payload' => ['username' => 'OY-TEST', 'password' => 'PASS123', 'profile' => 'oyalo-test', 'duration_minutes' => 60],
+    ]);
+    expect($userCommand->script)->toContain('/ip hotspot user add name="OY-TEST" password="PASS123" profile="oyalo-test" limit-uptime=60m');
+
+    $disableCommand = RouterCommand::create([
+        'router_id' => $router->id,
+        'command_type' => 'DISABLE_USER',
+        'payload' => ['username' => 'OY-TEST'],
+    ]);
+    expect($disableCommand->script)->toContain('/ip hotspot user set $UserIds disabled=yes');
 });
 
 it('only allows a router to acknowledge its own pending command with a valid status', function () {

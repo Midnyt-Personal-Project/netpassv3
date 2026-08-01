@@ -100,6 +100,7 @@ Example command response:
     {
       "id": 42,
       "type": "CREATE_USER",
+      "script": ":local UserIds [/ip hotspot user find where name=\"OY-ABC123DEF4\"]; :if ([:len $UserIds] = 0) do={ /ip hotspot user add name=\"OY-ABC123DEF4\" password=\"OY-ABC123DEF4\" profile=\"oyalo-1hour-8\" limit-uptime=60m comment=\"Managed by Oyalo\"; } else={ /ip hotspot user set $UserIds password=\"OY-ABC123DEF4\" profile=\"oyalo-1hour-8\" disabled=no limit-uptime=60m comment=\"Managed by Oyalo\"; /ip hotspot user reset-counters $UserIds; }",
       "payload": {
         "username": "OY-ABC123DEF4",
         "password": "OY-ABC123DEF4",
@@ -112,7 +113,7 @@ Example command response:
 }
 ```
 
-`mikrotik_sync.rsc` is a RouterOS 7.13+ polling script. Replace its URL, router ID, and token, import it, and schedule it at the interval appropriate for the hotspot. Keep TLS certificate checking enabled and install the required CA certificate on the router.
+`mikrotik_sync.rsc` is a RouterOS 7.13+ polling script. Each command returned by `/api/router/commands` includes an executable RouterOS `script` string alongside its type and payload, allowing the router to simply parse (`:parse`) and execute the script directly. Replace its URL, router ID, and token, import it, and schedule it at the interval appropriate for the hotspot. Keep TLS certificate checking enabled and install the required CA certificate on the router.
 
 ## Deployment
 
