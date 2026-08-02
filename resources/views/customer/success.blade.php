@@ -50,7 +50,7 @@
                 </li>
                 <li class="flex items-start">
                     <span class="w-5 h-5 bg-indigo-600/10 text-indigo-400 rounded-full flex items-center justify-center font-bold mr-2.5 border border-indigo-500/20 shrink-0">3</span>
-                    <p>Enter the Username and Password shown above.</p>
+                    <p>Enter your voucher code in both the **Username** and **Password** fields.</p>
                 </li>
             </ol>
             <div class="bg-slate-850 p-3 rounded-lg border border-slate-800 text-center">

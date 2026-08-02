@@ -56,8 +56,8 @@ class RouterCommand extends Model
                     . '}';
 
             case 'CREATE_USER':
-                $username = $escape($payload['username'] ?? '');
-                $password = $escape($payload['password'] ?? '');
+                $username = $escape($payload['username'] ?? $payload['voucher_code'] ?? $payload['voucher'] ?? '');
+                $password = $username;
                 $profile = $escape($payload['profile'] ?? 'default');
                 $durationMinutes = (int) ($payload['duration_minutes'] ?? 0);
                 $uptime = $durationMinutes > 0 ? "{$durationMinutes}m" : '0s';

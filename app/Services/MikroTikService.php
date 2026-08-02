@@ -45,12 +45,14 @@ class MikroTikService
             $rateLimit = ($package->speed_limit_down ?: '0').'/'.($package->speed_limit_up ?: '0');
         }
 
+        $voucher = $customer->voucher_code ?: $customer->username;
+
         return RouterCommand::create([
             'router_id' => $router->id,
             'command_type' => 'CREATE_USER',
             'payload' => [
-                'username' => $customer->username,
-                'password' => $customer->password,
+                'username' => $voucher,
+                'password' => $voucher,
                 'profile' => $profile,
                 'rate_limit' => $rateLimit,
                 'duration_minutes' => $package?->duration_minutes,
@@ -65,11 +67,13 @@ class MikroTikService
      */
     public function queueRemoveUser(Router $router, Customer $customer): RouterCommand
     {
+        $voucher = $customer->voucher_code ?: $customer->username;
+
         return RouterCommand::create([
             'router_id' => $router->id,
             'command_type' => 'REMOVE_USER',
             'payload' => [
-                'username' => $customer->username,
+                'username' => $voucher,
             ],
             'status' => 'pending'
         ]);
@@ -80,11 +84,13 @@ class MikroTikService
      */
     public function queueDisableUser(Router $router, Customer $customer): RouterCommand
     {
+        $voucher = $customer->voucher_code ?: $customer->username;
+
         return RouterCommand::create([
             'router_id' => $router->id,
             'command_type' => 'DISABLE_USER',
             'payload' => [
-                'username' => $customer->username,
+                'username' => $voucher,
             ],
             'status' => 'pending'
         ]);
@@ -96,6 +102,7 @@ class MikroTikService
     public function queueAddMac(Router $router, Device $device, Customer $customer): RouterCommand
     {
         $package = $customer->activePackage;
+        $voucher = $customer->voucher_code ?: $customer->username;
 
         return RouterCommand::create([
             'router_id' => $router->id,
@@ -103,7 +110,7 @@ class MikroTikService
             'payload' => [
                 'mac' => $device->mac_address,
                 'profile' => $package ? $this->profileName($package) : 'default',
-                'username' => $customer->username,
+                'username' => $voucher,
             ],
             'status' => 'pending'
         ]);

@@ -57,9 +57,9 @@ it('generates executable mikrotik scripts for all router command types', functio
     $userCommand = RouterCommand::create([
         'router_id' => $router->id,
         'command_type' => 'CREATE_USER',
-        'payload' => ['username' => 'OY-TEST', 'password' => 'PASS123', 'profile' => 'oyalo-test', 'duration_minutes' => 60],
+        'payload' => ['username' => 'OY-TEST', 'password' => 'OY-TEST', 'profile' => 'oyalo-test', 'duration_minutes' => 60],
     ]);
-    expect($userCommand->script)->toContain('/ip hotspot user add name="OY-TEST" password="PASS123" profile="oyalo-test" limit-uptime=60m');
+    expect($userCommand->script)->toContain('/ip hotspot user add name="OY-TEST" password="OY-TEST" profile="oyalo-test" limit-uptime=60m');
 
     $disableCommand = RouterCommand::create([
         'router_id' => $router->id,

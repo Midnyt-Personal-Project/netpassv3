@@ -119,7 +119,8 @@ class DatabaseSeeder extends Seeder
         $customer = Customer::create([
             'location_id' => $location->id,
             'username' => 'OY100234',
-            'password' => '7890',
+            'password' => 'OY100234',
+            'voucher_code' => 'OY100234',
             'phone_number' => '0244123456',
             'active_package_id' => $p2->id,
             'expires_at' => now()->addDays(1),
@@ -151,7 +152,7 @@ class DatabaseSeeder extends Seeder
         \App\Models\RouterCommand::create([
             'router_id' => $router->id,
             'command_type' => 'CREATE_USER',
-            'payload' => ['username' => 'OY-DEMO001', 'password' => 'demo', 'profile' => 'oyalo-1hour-8', 'duration_minutes' => 60],
+            'payload' => ['username' => 'OY-DEMO001', 'password' => 'OY-DEMO001', 'profile' => 'oyalo-1hour-8', 'duration_minutes' => 60],
             'status' => 'pending',
         ]);
         \App\Models\RouterCommand::create([
