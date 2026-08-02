@@ -131,16 +131,39 @@ Example command response (`/api/router/commands`):
 }
 
 # ACKNOWLEDGMENTS
-/tool fetch \
+# ==========================================
+# Oyalo ACK ID 15
+# ==========================================
+:log info "OYALO ACK ID 15 START"
+:local result15 [/tool fetch \
     url="https://wifi.oyalo.net/api/router/commands/15/ack" \
     http-method=post \
-    http-header-field="X-Router-ID: RTR-000001,X-Router-Token: TOKEN" \
-    output=none
-/tool fetch \
+    http-header-field="X-Router-ID: RTR-000001,X-Router-Token: TOKEN,Content-Type: application/x-www-form-urlencoded" \
+    http-data="status=completed" \
+    output=user \
+    as-value \
+    check-certificate=no]
+:log info "OYALO ACK ID 15 DONE"
+:log info ("STATUS = ".$result15->"status")
+:log info ("RESPONSE = ".$result15->"data")
+:log info "OYALO ACK ID 15 END"
+
+# ==========================================
+# Oyalo ACK ID 16
+# ==========================================
+:log info "OYALO ACK ID 16 START"
+:local result16 [/tool fetch \
     url="https://wifi.oyalo.net/api/router/commands/16/ack" \
     http-method=post \
-    http-header-field="X-Router-ID: RTR-000001,X-Router-Token: TOKEN" \
-    output=none
+    http-header-field="X-Router-ID: RTR-000001,X-Router-Token: TOKEN,Content-Type: application/x-www-form-urlencoded" \
+    http-data="status=completed" \
+    output=user \
+    as-value \
+    check-certificate=no]
+:log info "OYALO ACK ID 16 DONE"
+:log info ("STATUS = ".$result16->"status")
+:log info ("RESPONSE = ".$result16->"data")
+:log info "OYALO ACK ID 16 END"
 ```
 
 `mikrotik_sync.rsc` is a RouterOS 7 polling script. `/api/router/commands` returns a ready-to-execute plain text RouterOS script that applies pending commands and acknowledges each via `/tool fetch`. Replace its URL, router ID, and token, import it, and schedule it at the interval appropriate for the hotspot. Keep TLS certificate checking enabled and install the required CA certificate on the router.

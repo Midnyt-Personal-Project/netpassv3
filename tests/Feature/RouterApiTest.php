@@ -40,6 +40,7 @@ it('accepts a heartbeat and only returns commands for the authenticated router',
         ->and($response->getContent())->toContain('# OYALO SYNC')
         ->and($response->getContent())->toContain("# ID {$ownCommand->id}")
         ->and($response->getContent())->toContain('# ACKNOWLEDGMENTS')
+        ->and($response->getContent())->toContain("OYALO ACK ID {$ownCommand->id} START")
         ->and($response->getContent())->toContain($ownCommand->script)
         ->and($response->getContent())->toContain("/api/router/commands/{$ownCommand->id}/ack")
         ->and($response->getContent())->not->toContain('OY2');

@@ -109,11 +109,22 @@ class ApiController extends Controller
         if ($commands->isNotEmpty()) {
             $script .= "\n# ACKNOWLEDGMENTS\n";
             foreach ($commands as $command) {
-                $script .= "/tool fetch \\\n"
+                $script .= "# ==========================================\n"
+                    . "# Oyalo ACK ID {$command->id}\n"
+                    . "# ==========================================\n"
+                    . ":log info \"OYALO ACK ID {$command->id} START\"\n"
+                    . ":local result{$command->id} [/tool fetch \\\n"
                     . "    url=\"{$baseUrl}/api/router/commands/{$command->id}/ack\" \\\n"
                     . "    http-method=post \\\n"
-                    . "    http-header-field=\"X-Router-ID: {$router->router_id},X-Router-Token: {$router->api_token}\" \\\n"
-                    . "    output=none\n";
+                    . "    http-header-field=\"X-Router-ID: {$router->router_id},X-Router-Token: {$router->api_token},Content-Type: application/x-www-form-urlencoded\" \\\n"
+                    . "    http-data=\"status=completed\" \\\n"
+                    . "    output=user \\\n"
+                    . "    as-value \\\n"
+                    . "    check-certificate=no]\n"
+                    . ":log info \"OYALO ACK ID {$command->id} DONE\"\n"
+                    . ":log info (\"STATUS = \".\$result{$command->id}->\"status\")\n"
+                    . ":log info (\"RESPONSE = \".\$result{$command->id}->\"data\")\n"
+                    . ":log info \"OYALO ACK ID {$command->id} END\"\n\n";
             }
         }
 
