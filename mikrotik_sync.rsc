@@ -1,4 +1,4 @@
-# Oyalo command sync for RouterOS 7.13+ (requires :deserialize from=json).
+# Oyalo command sync for RouterOS 7
 # Replace these three values before importing the script.
 :local baseUrl "https://wifi.oyalo.net"
 :local routerId "RTR-REPLACE-ME"
@@ -24,31 +24,12 @@
     :error "Oyalo sync stopped"
 }
 
-:local response [:deserialize from=json value=($fetchResult->"data") options=json.no-string-conversion]
-:local commands ($response->"commands")
-
-:foreach command in=$commands do={
-    :local commandId ($command->"id")
-    :local commandScript ($command->"script")
-    :local commandStatus "completed"
-
-    :onerror commandError in={
-        :if ([:len $commandScript] = 0) do={
-            :error ("Missing script for command ".$commandId)
-        }
-        :local scriptFn [:parse $commandScript]
-        $scriptFn
+:local scriptContent ($fetchResult->"data")
+:if ([:len $scriptContent] > 0) do={
+    :onerror runError in={
+        :local runScript [:parse $scriptContent]
+        $runScript
     } do={
-        :set commandStatus "failed"
-        :log error ("Oyalo command ".$commandId." failed: ".$commandError)
-    }
-
-    :local ackData ("{\"status\":\"".$commandStatus."\"}")
-    :onerror ackError in={
-        /tool fetch url=($baseUrl."/api/router/commands/".$commandId."/ack") http-method=post \
-            http-header-field=($authHeaders.",Content-Type: application/json") \
-            http-data=$ackData output=none check-certificate=yes
-    } do={
-        :log warning ("Oyalo acknowledgement failed for command ".$commandId.": ".$ackError)
+        :log error ("Oyalo script execution failed: ".$runError)
     }
 }

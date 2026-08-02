@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Validator;
 
 use App\Http\Controllers\Controller;
 use App\Models\{Router, RouterCommand};
@@ -93,20 +94,27 @@ class ApiController extends Controller
 
         $commands = $router->pendingCommands()->oldest()->limit(100)->get();
 
-        // Return one consistent JSON contract. The old implementation emitted
-        // pipe-delimited text while the tests and MikroTik sync script expected
-        // JSON, which made command polling fail in production.
-        return response()->json([
-            'status' => 'success',
-            'router_id' => $router->router_id,
-            'commands' => $commands->map(fn (RouterCommand $command) => [
-                'id' => $command->id,
-                'type' => $command->command_type,
-                'script' => $command->script,
-                'payload' => $command->payload,
-                'created_at' => $command->created_at?->toIso8601String(),
-            ])->values(),
-        ])->header('Cache-Control', 'no-store');
+        $baseUrl = rtrim($request->root(), '/');
+        $script = "# OYALO SYNC\n\n";
+
+        foreach ($commands as $command) {
+            $cmdScript = trim($command->script);
+            if ($cmdScript !== '') {
+                $script .= $cmdScript . "\n\n";
+            }
+        }
+
+        foreach ($commands as $command) {
+            $script .= "/tool fetch \\\n"
+                . "url=\"{$baseUrl}/api/router/commands/{$command->id}/ack\" \\\n"
+                . "http-method=post \\\n"
+                . "http-header-field=\"X-Router-ID: {$router->router_id},X-Router-Token: {$router->api_token}\" \\\n"
+                . "output=none\n\n";
+        }
+
+        return response(trim($script), 200)
+            ->header('Content-Type', 'text/plain; charset=UTF-8')
+            ->header('Cache-Control', 'no-store');
     }
 
     public function acknowledgeCommand(Request $request, int $id)
@@ -116,7 +124,15 @@ class ApiController extends Controller
             return response()->json(['error' => 'Unauthorized router'], 401);
         }
 
-        $data = $request->validate(['status' => ['required', 'in:completed,failed']]);
+        $validator = Validator::make($request->all(), [
+            'status' => ['nullable', 'in:completed,failed'],
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['error' => 'Invalid status'], 422);
+        }
+
+        $status = $request->input('status', 'completed');
         $command = RouterCommand::whereKey($id)->where('router_id', $router->id)->first();
 
         if (!$command) {
@@ -128,7 +144,7 @@ class ApiController extends Controller
         $updated = RouterCommand::whereKey($command->id)
             ->where('router_id', $router->id)
             ->where('status', 'pending')
-            ->update(['status' => $data['status'], 'executed_at' => now()]);
+            ->update(['status' => $status, 'executed_at' => now()]);
 
         if (!$updated) {
             return response()->json(['error' => 'Command was already acknowledged'], 409);
@@ -138,14 +154,14 @@ class ApiController extends Controller
 
         $this->activityLogger->record(
             'router.command_acknowledged',
-            "Router {$router->router_id} marked command {$command->id} ({$command->command_type}) as {$data['status']}.",
+            "Router {$router->router_id} marked command {$command->id} ({$command->command_type}) as {$status}.",
             null,
             $request->ip()
         );
 
         return response()->json([
             'status' => 'success',
-            'message' => "Command {$id} status updated to {$data['status']}"
+            'message' => "Command {$id} status updated to {$status}"
         ]);
     }
 

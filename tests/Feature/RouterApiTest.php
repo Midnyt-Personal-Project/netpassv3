@@ -35,14 +35,12 @@ it('accepts a heartbeat and only returns commands for the authenticated router',
     $this->postJson('/api/router/heartbeat', ['model' => 'hAP ax2'], routerHeaders($router))->assertOk()->assertJsonPath('status', 'success');
     expect($router->fresh()->status)->toBe('online')->and($router->fresh()->model)->toBe('hAP ax2');
 
-    $this->getJson('/api/router/commands', routerHeaders($router))->assertOk()
-        ->assertJsonPath('status', 'success')
-        ->assertJsonPath('router_id', $router->router_id)
-        ->assertJsonCount(1, 'commands')
-        ->assertJsonPath('commands.0.id', $ownCommand->id)
-        ->assertJsonPath('commands.0.type', 'CREATE_USER')
-        ->assertJsonPath('commands.0.script', $ownCommand->script)
-        ->assertJsonPath('commands.0.payload.username', 'OY1');
+    $response = $this->get('/api/router/commands', routerHeaders($router))->assertOk();
+    expect($response->headers->get('Content-Type'))->toContain('text/plain')
+        ->and($response->getContent())->toContain('# OYALO SYNC')
+        ->and($response->getContent())->toContain($ownCommand->script)
+        ->and($response->getContent())->toContain("/api/router/commands/{$ownCommand->id}/ack")
+        ->and($response->getContent())->not->toContain('OY2');
 });
 
 it('generates executable mikrotik scripts for all router command types', function () {
@@ -50,23 +48,30 @@ it('generates executable mikrotik scripts for all router command types', functio
     $profileCommand = RouterCommand::create([
         'router_id' => $router->id,
         'command_type' => 'CREATE_PROFILE',
-        'payload' => ['name' => 'oyalo-test', 'speed_down' => '2M', 'speed_up' => '1M', 'share_users' => 1],
+        'payload' => ['name' => 'oyalo-test', 'speed_down' => '2M', 'speed_up' => '1M', 'share_users' => 1, 'duration_minutes' => 60],
     ]);
-    expect($profileCommand->script)->toContain('/ip hotspot user profile add name="oyalo-test" rate-limit="2M/1M"');
+    expect($profileCommand->script)->toContain('/ip hotspot user profile add \\')
+        ->and($profileCommand->script)->toContain('name="oyalo-test" \\')
+        ->and($profileCommand->script)->toContain('session-timeout=1h \\')
+        ->and($profileCommand->script)->toContain('rate-limit="2M/1M"');
 
     $userCommand = RouterCommand::create([
         'router_id' => $router->id,
         'command_type' => 'CREATE_USER',
         'payload' => ['username' => 'OY-TEST', 'password' => 'OY-TEST', 'profile' => 'oyalo-test', 'duration_minutes' => 60],
     ]);
-    expect($userCommand->script)->toContain('/ip hotspot user add name="OY-TEST" password="OY-TEST" profile="oyalo-test" limit-uptime=60m');
+    expect($userCommand->script)->toContain('/ip hotspot user add \\')
+        ->and($userCommand->script)->toContain('name="OY-TEST" \\')
+        ->and($userCommand->script)->toContain('password="OY-TEST" \\')
+        ->and($userCommand->script)->toContain('limit-uptime=1h');
 
     $disableCommand = RouterCommand::create([
         'router_id' => $router->id,
         'command_type' => 'DISABLE_USER',
         'payload' => ['username' => 'OY-TEST'],
     ]);
-    expect($disableCommand->script)->toContain('/ip hotspot user set $UserIds disabled=yes');
+    expect($disableCommand->script)->toContain('/ip hotspot user disable [find where name="OY-TEST"]')
+        ->and($disableCommand->script)->toContain('/ip hotspot active remove [find where user="OY-TEST"]');
 });
 
 it('only allows a router to acknowledge its own pending command with a valid status', function () {
@@ -74,9 +79,9 @@ it('only allows a router to acknowledge its own pending command with a valid sta
     $otherRouter = testRouter();
     $command = RouterCommand::create(['router_id' => $router->id, 'command_type' => 'CREATE_USER', 'payload' => ['username' => 'OY1']]);
 
-    $this->postJson("/api/router/commands/{$command->id}/ack", ['status' => 'completed'], routerHeaders($otherRouter))->assertNotFound();
+    $this->post("/api/router/commands/{$command->id}/ack", [], routerHeaders($otherRouter))->assertNotFound();
     $this->postJson("/api/router/commands/{$command->id}/ack", ['status' => 'not-valid'], routerHeaders($router))->assertUnprocessable();
-    $this->postJson("/api/router/commands/{$command->id}/ack", ['status' => 'completed'], routerHeaders($router))->assertOk();
+    $this->post("/api/router/commands/{$command->id}/ack", [], routerHeaders($router))->assertOk();
     expect($command->fresh()->status)->toBe('completed')->and($command->fresh()->executed_at)->not->toBeNull();
-    $this->postJson("/api/router/commands/{$command->id}/ack", ['status' => 'completed'], routerHeaders($router))->assertStatus(409);
+    $this->post("/api/router/commands/{$command->id}/ack", [], routerHeaders($router))->assertStatus(409);
 });

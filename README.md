@@ -86,34 +86,56 @@ Endpoints:
 | Method | Endpoint | Purpose |
 |---|---|---|
 | `POST` | `/api/router/heartbeat` | Mark the router online |
-| `GET` | `/api/router/commands` | Fetch up to 100 pending commands as JSON |
+| `GET` | `/api/router/commands` | Fetch executable RouterOS script for pending commands |
 | `POST` | `/api/router/commands/{id}/ack` | Acknowledge with `completed` or `failed` |
-| `GET` | `/api/router/data` | Fetch router details and pending commands |
+| `GET` | `/api/router/data` | Fetch router details and pending commands as JSON |
 
-Example command response:
+Example command response (`/api/router/commands`):
 
-```json
-{
-  "status": "success",
-  "router_id": "RTR-000001",
-  "commands": [
-    {
-      "id": 42,
-      "type": "CREATE_USER",
-      "script": ":local UserIds [/ip hotspot user find where name=\"OY-ABC123DEF4\"]; :if ([:len $UserIds] = 0) do={ /ip hotspot user add name=\"OY-ABC123DEF4\" password=\"OY-ABC123DEF4\" profile=\"oyalo-1hour-8\" limit-uptime=60m comment=\"Managed by Oyalo\"; } else={ /ip hotspot user set $UserIds password=\"OY-ABC123DEF4\" profile=\"oyalo-1hour-8\" disabled=no limit-uptime=60m comment=\"Managed by Oyalo\"; /ip hotspot user reset-counters $UserIds; }",
-      "payload": {
-        "username": "OY-ABC123DEF4",
-        "password": "OY-ABC123DEF4",
-        "profile": "oyalo-1hour-8",
-        "duration_minutes": 60
-      },
-      "created_at": "2026-07-30T10:00:00Z"
-    }
-  ]
+```routeros
+# OYALO SYNC
+
+:local ProfileIds [/ip hotspot user profile find where name="oyalo-1hour-8"]
+
+:if ([:len $ProfileIds]=0) do={
+    /ip hotspot user profile add \
+        name="oyalo-1hour-8" \
+        shared-users=2 \
+        session-timeout=1h \
+        mac-cookie-timeout=1h
+} else={
+    /ip hotspot user profile set \
+        $ProfileIds \
+        shared-users=2 \
+        session-timeout=1h \
+        mac-cookie-timeout=1h
 }
+
+:local UserIds [/ip hotspot user find where name="OY-DEMO001"]
+
+:if ([:len $UserIds]=0) do={
+    /ip hotspot user add \
+        name="OY-DEMO001" \
+        password="OY-DEMO001" \
+        profile="oyalo-1hour-8" \
+        limit-uptime=1h
+} else={
+    /ip hotspot user set \
+        $UserIds \
+        password="OY-DEMO001" \
+        profile="oyalo-1hour-8" \
+        disabled=no \
+        limit-uptime=1h
+}
+
+/tool fetch \
+    url="https://wifi.oyalo.net/api/router/commands/15/ack" \
+    http-method=post \
+    http-header-field="X-Router-ID: RTR-000001,X-Router-Token: TOKEN" \
+    output=none
 ```
 
-`mikrotik_sync.rsc` is a RouterOS 7.13+ polling script. Each command returned by `/api/router/commands` includes an executable RouterOS `script` string alongside its type and payload, allowing the router to simply parse (`:parse`) and execute the script directly. Replace its URL, router ID, and token, import it, and schedule it at the interval appropriate for the hotspot. Keep TLS certificate checking enabled and install the required CA certificate on the router.
+`mikrotik_sync.rsc` is a RouterOS 7 polling script. `/api/router/commands` returns a ready-to-execute plain text RouterOS script that applies pending commands and acknowledges each via `/tool fetch`. Replace its URL, router ID, and token, import it, and schedule it at the interval appropriate for the hotspot. Keep TLS certificate checking enabled and install the required CA certificate on the router.
 
 ## Deployment
 
