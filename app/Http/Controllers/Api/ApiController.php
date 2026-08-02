@@ -103,13 +103,18 @@ class ApiController extends Controller
                 continue;
             }
 
-            $script .= "\n# ID {$command->id}\n"
-                . $cmdScript . "\n"
-                . "/tool fetch \\\n"
-                . "    url=\"{$baseUrl}/api/router/commands/{$command->id}/ack\" \\\n"
-                . "    http-method=post \\\n"
-                . "    http-header-field=\"X-Router-ID: {$router->router_id},X-Router-Token: {$router->api_token}\" \\\n"
-                . "    output=none\n";
+            $script .= "\n# ID {$command->id}\n" . $cmdScript . "\n";
+        }
+
+        if ($commands->isNotEmpty()) {
+            $script .= "\n# ACKNOWLEDGMENTS\n";
+            foreach ($commands as $command) {
+                $script .= "/tool fetch \\\n"
+                    . "    url=\"{$baseUrl}/api/router/commands/{$command->id}/ack\" \\\n"
+                    . "    http-method=post \\\n"
+                    . "    http-header-field=\"X-Router-ID: {$router->router_id},X-Router-Token: {$router->api_token}\" \\\n"
+                    . "    output=none\n";
+            }
         }
 
         return response(trim($script), 200)

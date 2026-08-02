@@ -39,6 +39,7 @@ it('accepts a heartbeat and only returns commands for the authenticated router',
     expect($response->headers->get('Content-Type'))->toContain('text/plain')
         ->and($response->getContent())->toContain('# OYALO SYNC')
         ->and($response->getContent())->toContain("# ID {$ownCommand->id}")
+        ->and($response->getContent())->toContain('# ACKNOWLEDGMENTS')
         ->and($response->getContent())->toContain($ownCommand->script)
         ->and($response->getContent())->toContain("/api/router/commands/{$ownCommand->id}/ack")
         ->and($response->getContent())->not->toContain('OY2');

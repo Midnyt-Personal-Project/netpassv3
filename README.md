@@ -111,11 +111,6 @@ Example command response (`/api/router/commands`):
         session-timeout=1h \
         mac-cookie-timeout=1h
 }
-/tool fetch \
-    url="https://wifi.oyalo.net/api/router/commands/15/ack" \
-    http-method=post \
-    http-header-field="X-Router-ID: RTR-000001,X-Router-Token: TOKEN" \
-    output=none
 
 # ID 16
 :local UserIds [/ip hotspot user find where name="OY-DEMO001"]
@@ -134,6 +129,13 @@ Example command response (`/api/router/commands`):
         disabled=no \
         limit-uptime=1h
 }
+
+# ACKNOWLEDGMENTS
+/tool fetch \
+    url="https://wifi.oyalo.net/api/router/commands/15/ack" \
+    http-method=post \
+    http-header-field="X-Router-ID: RTR-000001,X-Router-Token: TOKEN" \
+    output=none
 /tool fetch \
     url="https://wifi.oyalo.net/api/router/commands/16/ack" \
     http-method=post \
