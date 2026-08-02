@@ -95,21 +95,21 @@ class ApiController extends Controller
         $commands = $router->pendingCommands()->oldest()->limit(100)->get();
 
         $baseUrl = rtrim($request->root(), '/');
-        $script = "# OYALO SYNC\n\n";
+        $script = "# OYALO SYNC\n";
 
         foreach ($commands as $command) {
             $cmdScript = trim($command->script);
-            if ($cmdScript !== '') {
-                $script .= $cmdScript . "\n\n";
+            if ($cmdScript === '') {
+                continue;
             }
-        }
 
-        foreach ($commands as $command) {
-            $script .= "/tool fetch \\\n"
-                . "url=\"{$baseUrl}/api/router/commands/{$command->id}/ack\" \\\n"
-                . "http-method=post \\\n"
-                . "http-header-field=\"X-Router-ID: {$router->router_id},X-Router-Token: {$router->api_token}\" \\\n"
-                . "output=none\n\n";
+            $script .= "\n# ID {$command->id}\n"
+                . $cmdScript . "\n"
+                . "/tool fetch \\\n"
+                . "    url=\"{$baseUrl}/api/router/commands/{$command->id}/ack\" \\\n"
+                . "    http-method=post \\\n"
+                . "    http-header-field=\"X-Router-ID: {$router->router_id},X-Router-Token: {$router->api_token}\" \\\n"
+                . "    output=none\n";
         }
 
         return response(trim($script), 200)

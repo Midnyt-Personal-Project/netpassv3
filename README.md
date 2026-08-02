@@ -95,6 +95,7 @@ Example command response (`/api/router/commands`):
 ```routeros
 # OYALO SYNC
 
+# ID 15
 :local ProfileIds [/ip hotspot user profile find where name="oyalo-1hour-8"]
 
 :if ([:len $ProfileIds]=0) do={
@@ -110,7 +111,13 @@ Example command response (`/api/router/commands`):
         session-timeout=1h \
         mac-cookie-timeout=1h
 }
+/tool fetch \
+    url="https://wifi.oyalo.net/api/router/commands/15/ack" \
+    http-method=post \
+    http-header-field="X-Router-ID: RTR-000001,X-Router-Token: TOKEN" \
+    output=none
 
+# ID 16
 :local UserIds [/ip hotspot user find where name="OY-DEMO001"]
 
 :if ([:len $UserIds]=0) do={
@@ -127,9 +134,8 @@ Example command response (`/api/router/commands`):
         disabled=no \
         limit-uptime=1h
 }
-
 /tool fetch \
-    url="https://wifi.oyalo.net/api/router/commands/15/ack" \
+    url="https://wifi.oyalo.net/api/router/commands/16/ack" \
     http-method=post \
     http-header-field="X-Router-ID: RTR-000001,X-Router-Token: TOKEN" \
     output=none
