@@ -420,6 +420,31 @@ class AdminController extends Controller
     }
 
     /**
+     * Unblock a subscription (re-enable the user and MAC TV on the router).
+     */
+    public function unblockSubscription($id, MikroTikService $mikrotik)
+    {
+        $customer = Customer::findOrFail($id);
+        $this->ensureManagedLocation($customer->location_id);
+        $customer->update(['status' => 'active']);
+
+        foreach ($customer->location->routers()->get() as $router) {
+            $mikrotik->queueCreateUser($router, $customer);
+
+            foreach ($customer->activeDevices()->get() as $device) {
+                $mikrotik->queueAddMac($router, $device, $customer);
+            }
+        }
+
+        app(ActivityLogger::class)->record(
+            'subscription.unblocked',
+            "Unblocked subscription for {$customer->username} at {$customer->location->name}."
+        );
+
+        return back()->with('success', 'Subscription unblocked successfully.');
+    }
+
+    /**
      * Remove a subscription (remove the user from the router).
      */
     public function removeSubscription($id, MikroTikService $mikrotik)

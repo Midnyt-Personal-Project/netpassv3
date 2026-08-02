@@ -118,7 +118,9 @@ class RouterCommand extends Model
 
                 return ':foreach i in=[/ip hotspot ip-binding find where mac-address="' . $mac . '"] do={' . "\n"
                     . '    /ip hotspot ip-binding remove $i' . "\n"
-                    . '}';
+                    . '}' . "\n"
+                    . '/ip hotspot active remove [find where mac-address="' . $mac . '"]' . "\n"
+                    . '/ip hotspot cookie remove [find where mac-address="' . $mac . '"]';
 
             case 'DISABLE_USER':
                 $username = $escape($payload['username'] ?? '');

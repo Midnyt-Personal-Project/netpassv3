@@ -113,10 +113,17 @@
                             <td class="py-3 text-emerald-400">{{ number_format($subscription->amount, 2) }} GHS</td>
                             <td class="py-3 text-center space-x-2">
                                 @if($subscription->customer)
-                                    <form method="POST" action="{{ route('admin.subscriptions.block', $subscription->customer->id) }}" style="display:inline-block">
-                                        @csrf
-                                        <button type="submit" class="bg-red-600 hover:bg-red-500 text-white text-xs px-2 py-1 rounded">Block</button>
-                                    </form>
+                                    @if($displayStatus === 'Suspended')
+                                        <form method="POST" action="{{ route('admin.subscriptions.unblock', $subscription->customer->id) }}" style="display:inline-block">
+                                            @csrf
+                                            <button type="submit" class="bg-teal-600 hover:bg-teal-500 text-white text-xs px-2 py-1 rounded font-semibold">Unblock</button>
+                                        </form>
+                                    @else
+                                        <form method="POST" action="{{ route('admin.subscriptions.block', $subscription->customer->id) }}" style="display:inline-block">
+                                            @csrf
+                                            <button type="submit" class="bg-red-600 hover:bg-red-500 text-white text-xs px-2 py-1 rounded">Block</button>
+                                        </form>
+                                    @endif
                                     <form method="POST" action="{{ route('admin.subscriptions.remove', $subscription->customer->id) }}" style="display:inline-block">
                                         @csrf
                                         @method('DELETE')

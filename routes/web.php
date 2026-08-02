@@ -49,6 +49,7 @@ Route::prefix('admin')->middleware(['auth', 'role:admin,super_admin'])->group(fu
     Route::get('subscriptions', [AdminController::class, 'showSubscriptions'])->name('admin.subscriptions');
     Route::post('subscriptions/create', [AdminController::class, 'createSubscription'])->name('admin.subscriptions.create');
     Route::post('subscriptions/{id}/block', [AdminController::class, 'blockSubscription'])->name('admin.subscriptions.block');
+    Route::post('subscriptions/{id}/unblock', [AdminController::class, 'unblockSubscription'])->name('admin.subscriptions.unblock');
     Route::delete('subscriptions/{id}', [AdminController::class, 'removeSubscription'])->name('admin.subscriptions.remove');
     Route::post('locations/{location}/subscription-notifications', [AdminController::class, 'updateSubscriptionNotifications'])->name('admin.locations.subscription-notifications');
 });
