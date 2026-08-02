@@ -168,6 +168,16 @@ Example command response (`/api/router/commands`):
 
 `mikrotik_sync.rsc` is a RouterOS 7 polling script. `/api/router/commands` returns a ready-to-execute plain text RouterOS script that applies pending commands and acknowledges each via `/tool fetch`. Replace its URL, router ID, and token, import it, and schedule it at the interval appropriate for the hotspot. Keep TLS certificate checking enabled and install the required CA certificate on the router.
 
+## MikroTik Hotspot Custom Login Template (`hotspot-login.html`)
+
+A polished, responsive HTML5 template is available in `docs/mikrotik/hotspot-login.html` for deployment to your MikroTik router (`/hotspot/login.html` or `/flash/hotspot/login.html`). Features include:
+
+- **One-Code Voucher Authentication:** Automatically syncs the user's voucher code into both the `username` and `password` fields for CHAP MD5 and plain-text form submissions.
+- **Auto-Formatting:** Automatically converts lowercase input to uppercase and strips accidental whitespace as the customer types.
+- **Smart TV & MAC Login Guidance:** Explains to customers how to register their smart TVs or consoles via the portal without needing browser login on the TV.
+- **Device Information Card:** Displays `$(hostname)`, `$(ip)`, and `$(mac)` with a one-click **Copy MAC** helper button.
+- **Rich Error Handling:** Surfaces detailed troubleshooting advice whenever MikroTik returns authentication errors (`$(error)`).
+
 ## Deployment
 
 After pulling an update:

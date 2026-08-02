@@ -1,0 +1,461 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Oyalo WiFi — Hotspot Login</title>
+<style>
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    min-height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f4c81 100%);
+    color: #334155;
+    padding: 20px;
+}
+
+.container {
+    width: 100%;
+    max-width: 460px;
+    background: #ffffff;
+    border-radius: 28px;
+    padding: 36px 30px;
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.45);
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+}
+
+.container::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 6px;
+    background: linear-gradient(90deg, #0f4c81, #00c6ff);
+}
+
+.logo-wrap {
+    width: 84px;
+    height: 84px;
+    margin: 0 auto 16px;
+    border-radius: 24px;
+    background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
+    border: 2px solid #bbf7d0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 38px;
+    box-shadow: 0 10px 20px -5px rgba(22, 101, 52, 0.15);
+}
+
+h1 {
+    color: #0f172a;
+    font-size: 26px;
+    font-weight: 800;
+    letter-spacing: -0.5px;
+    margin-bottom: 6px;
+}
+
+.subtitle {
+    color: #64748b;
+    font-size: 14px;
+    margin-bottom: 24px;
+    line-height: 1.5;
+}
+
+.badge-info {
+    display: inline-block;
+    background: #eff6ff;
+    color: #1d4ed8;
+    font-size: 12px;
+    font-weight: 600;
+    padding: 6px 14px;
+    border-radius: 999px;
+    margin-bottom: 20px;
+    border: 1px solid #bfdbfe;
+}
+
+.error-banner {
+    background: #fef2f2;
+    border: 1px solid #fecaca;
+    color: #991b1b;
+    padding: 16px;
+    border-radius: 16px;
+    margin-bottom: 24px;
+    font-size: 13.5px;
+    text-align: left;
+    line-height: 1.5;
+}
+
+.error-banner strong {
+    color: #7f1d1d;
+    display: block;
+    margin-bottom: 4px;
+}
+
+.input-group {
+    text-align: left;
+    margin-bottom: 20px;
+}
+
+label {
+    display: block;
+    font-size: 12px;
+    font-weight: 700;
+    color: #475569;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 8px;
+}
+
+.input-wrapper {
+    position: relative;
+}
+
+input[type="text"] {
+    width: 100%;
+    padding: 15px 16px;
+    border-radius: 14px;
+    border: 2px solid #e2e8f0;
+    font-size: 18px;
+    font-weight: 700;
+    font-family: monospace;
+    color: #0f172a;
+    background: #f8fafc;
+    transition: all 0.2s ease;
+    letter-spacing: 1px;
+}
+
+input[type="text"]:focus {
+    outline: none;
+    border-color: #0f4c81;
+    background: #ffffff;
+    box-shadow: 0 0 0 4px rgba(15, 76, 129, 0.12);
+}
+
+.hint {
+    font-size: 12px;
+    color: #64748b;
+    margin-top: 6px;
+    line-height: 1.4;
+}
+
+button.submit-btn {
+    width: 100%;
+    padding: 16px;
+    border: none;
+    border-radius: 14px;
+    background: linear-gradient(90deg, #0f4c81 0%, #00c6ff 100%);
+    color: white;
+    font-size: 16px;
+    font-weight: 700;
+    cursor: pointer;
+    box-shadow: 0 10px 20px -5px rgba(15, 76, 129, 0.4);
+    transition: all 0.2s ease;
+}
+
+button.submit-btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 15px 25px -5px rgba(15, 76, 129, 0.5);
+}
+
+button.submit-btn:active {
+    transform: translateY(0);
+}
+
+/* Device info card */
+.device-card {
+    margin-top: 28px;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 18px;
+    padding: 18px;
+    text-align: left;
+    font-size: 13px;
+}
+
+.device-title {
+    color: #0f172a;
+    font-weight: 700;
+    margin-bottom: 12px;
+    font-size: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.device-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 0;
+    border-bottom: 1px solid #f1f5f9;
+}
+
+.device-row:last-child {
+    border-bottom: none;
+    padding-bottom: 0;
+}
+
+.device-label {
+    color: #64748b;
+}
+
+.device-value {
+    color: #0f172a;
+    font-weight: 700;
+    font-family: monospace;
+    font-size: 13px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.copy-mac-btn {
+    background: #e2e8f0;
+    border: none;
+    padding: 3px 8px;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 600;
+    color: #475569;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.copy-mac-btn:hover {
+    background: #cbd5e1;
+}
+
+/* Informational / Feature boxes */
+.info-accordion {
+    margin-top: 20px;
+    text-align: left;
+}
+
+.info-box {
+    background: #f1f5f9;
+    border-radius: 14px;
+    padding: 14px 16px;
+    margin-bottom: 10px;
+    font-size: 13px;
+    color: #334155;
+    line-height: 1.5;
+}
+
+.info-box h4 {
+    font-size: 13px;
+    color: #0f172a;
+    margin-bottom: 4px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.buy-section {
+    margin-top: 24px;
+    padding-top: 20px;
+    border-top: 1px solid #e2e8f0;
+    font-size: 14px;
+}
+
+.buy-section a {
+    color: #0f4c81;
+    font-weight: 700;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 6px;
+}
+
+.buy-section a:hover {
+    text-decoration: underline;
+}
+
+.footer {
+    margin-top: 24px;
+    font-size: 12px;
+    color: #94a3b8;
+    line-height: 1.6;
+}
+
+.footer strong {
+    color: #475569;
+}
+</style>
+</head>
+<body>
+
+<!-- CHAP AUTHENTICATION FORM -->
+$(if chap-id)
+<form name="sendin" action="$(link-login-only)" method="post">
+    <input type="hidden" name="username">
+    <input type="hidden" name="password">
+    <input type="hidden" name="dst" value="$(link-orig)">
+    <input type="hidden" name="popup" value="true">
+</form>
+
+<script src="/md5.js"></script>
+<script>
+function doLogin() {
+    let username = document.login.username.value.trim().toUpperCase();
+    
+    // In Oyalo Hotspot, the voucher code is BOTH username and password
+    document.login.username.value = username;
+    document.login.password.value = username;
+    
+    document.sendin.username.value = username;
+    document.sendin.password.value = hexMD5('$(chap-id)' + username + '$(chap-challenge)');
+    document.sendin.submit();
+    return false;
+}
+</script>
+$(endif)
+
+<div class="container">
+    <div class="logo-wrap">
+        ⚡
+    </div>
+
+    <h1>Oyalo WiFi Hotspot</h1>
+    <p class="subtitle">High-speed internet access powered by MikroTik</p>
+
+    <div class="badge-info">
+        🎟 One-Code Login — Same code for Username & Password
+    </div>
+
+    <!-- MIKROTIK ERROR MESSAGE -->
+    $(if error)
+    <div class="error-banner">
+        <strong>⚠️ Authentication Alert</strong>
+        $(error)
+        <div style="margin-top: 8px; font-size: 12.5px; color: #7f1d1d;">
+            • Check that your voucher code is typed correctly.<br>
+            • If your time has expired, purchase a new voucher below.<br>
+            • Ensure you haven't exceeded your maximum allowed devices.
+        </div>
+    </div>
+    $(endif)
+
+    <form name="login" action="$(link-login-only)" method="post" $(if chap-id)onsubmit="return doLogin()"$(endif)>
+        <input type="hidden" name="dst" value="$(link-orig)">
+        <input type="hidden" name="popup" value="true">
+        <input type="hidden" name="password" id="password">
+
+        <div class="input-group">
+            <label for="username">Enter Voucher Code</label>
+            <div class="input-wrapper">
+                <input 
+                    type="text" 
+                    id="username"
+                    name="username" 
+                    value="$(username)" 
+                    placeholder="e.g. OY-ABC123DEF4" 
+                    autocomplete="off" 
+                    autocapitalize="characters"
+                    required>
+            </div>
+            <p class="hint">No separate password needed. We automatically apply your voucher code to both fields.</p>
+        </div>
+
+        <button type="submit" class="submit-btn">
+            Connect to Internet 🌐
+        </button>
+    </form>
+
+    <!-- DEVICE INFORMATION -->
+    <div class="device-card">
+        <div class="device-title">
+            <span>📱 Connected Device Details</span>
+            <span style="font-size: 11px; font-weight: 500; color: #16a34a;">● Online Ready</span>
+        </div>
+        <div class="device-row">
+            <span class="device-label">Hostname</span>
+            <span class="device-value">$(hostname)</span>
+        </div>
+        <div class="device-row">
+            <span class="device-label">IP Address</span>
+            <span class="device-value">$(ip)</span>
+        </div>
+        <div class="device-row">
+            <span class="device-label">MAC Address</span>
+            <span class="device-value">
+                <span id="mac-address-text">$(mac)</span>
+                <button type="button" class="copy-mac-btn" onclick="copyMac()">Copy</button>
+            </span>
+        </div>
+    </div>
+
+    <!-- HELPFUL TIPS & SMART TV INFORMATION -->
+    <div class="info-accordion">
+        <div class="info-box">
+            <h4>📺 Connecting Smart TVs & Consoles?</h4>
+            <p>You don't need to type voucher codes on your TV! Simply register your TV's hardware MAC address in the customer portal on your phone or computer, and your TV will connect automatically without this login screen.</p>
+        </div>
+        <div class="info-box">
+            <h4>🔄 Disconnected or Session Paused?</h4>
+            <p>Your remaining voucher time stays valid until expiration. Simply open your browser or reconnect to the WiFi to resume streaming at any time.</p>
+        </div>
+    </div>
+
+    <!-- PURCHASE MORE TIME -->
+    <div class="buy-section">
+        <span>Need more time or another voucher?</span><br>
+        <a href="https://wifi.oyalo.net">
+            🛒 Buy WiFi Subscription &rarr;
+        </a>
+    </div>
+
+    <!-- FOOTER SUPPORT -->
+    <div class="footer">
+        Oyalo WiFi Network System &bull; Powered by RouterOS<br>
+        Need assistance? Contact Reception or WhatsApp <strong>0542069352</strong>
+    </div>
+</div>
+
+<script>
+// Automatically format voucher code: trim whitespace & uppercase
+const usernameInput = document.getElementById("username");
+if (usernameInput) {
+    usernameInput.addEventListener("input", function(e) {
+        let val = e.target.value.toUpperCase().replace(/\s+/g, "");
+        e.target.value = val;
+    });
+}
+
+// Ensure plain-text login form syncs password identical to voucher username
+const loginForm = document.querySelector("form[name='login']");
+if (loginForm) {
+    loginForm.addEventListener("submit", function() {
+        let val = usernameInput ? usernameInput.value.trim().toUpperCase() : "";
+        document.getElementById("password").value = val;
+    });
+}
+
+// Copy MAC address helper for Smart TV / Device registration
+function copyMac() {
+    const macText = document.getElementById("mac-address-text")?.innerText || "";
+    if (macText && macText !== "$(mac)") {
+        navigator.clipboard.writeText(macText).then(() => {
+            alert("MAC Address (" + macText + ") copied to clipboard!");
+        }).catch(() => {
+            alert("MAC Address: " + macText);
+        });
+    } else {
+        alert("MAC Address will appear when connected through MikroTik Hotspot.");
+    }
+}
+</script>
+</body>
+</html>
