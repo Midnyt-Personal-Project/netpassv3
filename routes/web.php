@@ -30,6 +30,8 @@ Route::prefix('superadmin')->middleware(['auth', 'role:super_admin'])->group(fun
     Route::post('admin/create', [SuperAdminController::class, 'createAdmin'])->name('superadmin.admin.create');
     Route::post('location/create', [SuperAdminController::class, 'createLocation'])->name('superadmin.location.create');
     Route::post('router/create', [SuperAdminController::class, 'createRouter'])->name('superadmin.router.create');
+    Route::get('router-commands', [SuperAdminController::class, 'showRouterCommands'])->name('superadmin.router-commands');
+    Route::get('routers', [SuperAdminController::class, 'showRouters'])->name('superadmin.routers');
     Route::post('admin/{id}/toggle', [SuperAdminController::class, 'toggleAdminStatus'])->name('superadmin.admin.toggle');
 });
 
@@ -47,3 +49,5 @@ Route::prefix('admin')->middleware(['auth', 'role:admin,super_admin'])->group(fu
     Route::post('subscriptions/create', [AdminController::class, 'createSubscription'])->name('admin.subscriptions.create');
     Route::post('locations/{location}/subscription-notifications', [AdminController::class, 'updateSubscriptionNotifications'])->name('admin.locations.subscription-notifications');
 });
+Route::post('subscriptions/block/{id}', [AdminController::class, 'blockSubscription'])->name('admin.subscriptions.block');
+Route::post('subscriptions/remove/{id}', [AdminController::class, 'removeSubscription'])->name('admin.subscriptions.remove');

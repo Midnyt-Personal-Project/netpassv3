@@ -8,7 +8,7 @@ use Illuminate\Support\Str;
 use Carbon\Carbon;
 
 use App\Http\Controllers\Controller;
-use App\Models\{ActivityLog, Announcement, Customer, Device, EmailLog, Location, Package, Payment, SmsLog};
+use App\Models\{ActivityLog, Announcement, Customer, Device, EmailLog, Location, Package, Payment, RouterCommand, SmsLog};
 use App\Services\{ActivityLogger, MikroTikService, OwnerNotificationService, SmsService};
 
 class AdminController extends Controller
@@ -21,7 +21,7 @@ class AdminController extends Controller
 
         return $user->isSuperAdmin()
             ? Location::orderBy('name')->get()
-            : $user->locations()->orderBy('name')->get();
+            : $user->locations()->orderBy('name')->latest()->paginate(15);
     }
 
     protected function locationIds()
@@ -38,7 +38,7 @@ class AdminController extends Controller
 
         return $user->isSuperAdmin()
             ? Location::orderBy('name')->get()
-            : $user->locations()->orderBy('name')->get();
+            : $user->locations()->orderBy('name')->latest()->paginate(15);
     }
 
     protected function locationIds()
@@ -66,10 +66,10 @@ class AdminController extends Controller
             'total_devices' => Device::whereHas('customer', fn ($query) => $query->whereIn('location_id', $locationIds))->count(),
             'total_devices' => Device::whereHas('customer', fn ($query) => $query->whereIn('location_id', $locationIds))->count(),
         ];
-        $payments = Payment::with(['customer', 'package', 'location'])->whereIn('location_id', $locationIds)->latest()->take(10)->get();
-        $customers = Customer::with(['activePackage', 'location'])->whereIn('location_id', $locationIds)->latest()->take(10)->get();
-        $payments = Payment::with(['customer', 'package', 'location'])->whereIn('location_id', $locationIds)->latest()->take(10)->get();
-        $customers = Customer::with(['activePackage', 'location'])->whereIn('location_id', $locationIds)->latest()->take(10)->get();
+        $payments = Payment::with(['customer', 'package', 'location'])->whereIn('location_id', $locationIds)->latest()->take(10)->latest()->paginate(15);
+        $customers = Customer::with(['activePackage', 'location'])->whereIn('location_id', $locationIds)->latest()->take(10)->latest()->paginate(15);
+        $payments = Payment::with(['customer', 'package', 'location'])->whereIn('location_id', $locationIds)->latest()->take(10)->latest()->paginate(15);
+        $customers = Customer::with(['activePackage', 'location'])->whereIn('location_id', $locationIds)->latest()->take(10)->latest()->paginate(15);
 
         return view('admin.dashboard', compact('stats', 'payments', 'customers', 'locations'));
     }
@@ -77,8 +77,8 @@ class AdminController extends Controller
     public function showPackages()
     {
         $locations = $this->getAdminLocations();
-        $packages = Package::whereIn('location_id', $locations->pluck('id'))->with('location')->get();
-        $packages = Package::whereIn('location_id', $locations->pluck('id'))->with('location')->get();
+        $packages = Package::whereIn("location_id", $locations->pluck("id"))->with("location")->latest()->paginate(15);
+        $packages = Package::whereIn("location_id", $locations->pluck("id"))->with("location")->latest()->paginate(15);
 
         return view('admin.packages', compact('packages', 'locations'));
     }
@@ -103,6 +103,7 @@ class AdminController extends Controller
             'speed_limit_up' => 'nullable|string|max:30',
             'speed_limit_down' => 'nullable|string|max:30',
             'data_limit_mb' => 'nullable|integer|min:1',
+            'share_users' => 'nullable|integer|min:1|max:100',
         ]);
         $this->ensureManagedLocation((int) $data['location_id']);
 
@@ -119,6 +120,22 @@ class AdminController extends Controller
         $data['duration_minutes'] = $data['duration_value'] * $multiplier;
         unset($data['duration_value'], $data['duration_unit']);
         $package = Package::create($data);
+        $router = \App\Models\Location::find($package->location_id)?->routers()?->first();
+        if ($router) {
+            \App\Models\RouterCommand::create([
+                'router_id' => $router->id,
+                'command_type' => 'CREATE_PROFILE',
+                'payload' => [
+                    'name' => (new \App\Services\MikroTikService())->profileName($package),
+                    'speed_down' => $package->speed_limit_down ?: '0',
+                    'speed_up' => $package->speed_limit_up ?: '0',
+                    'duration_minutes' => $package->duration_minutes,
+                    'duration_formatted' => sprintf('%dd %02d:%02d:%02d', floor($package->duration_minutes/1440), floor(($package->duration_minutes%1440)/60), $package->duration_minutes%60, 0),
+                    'share_users' => $package->share_users ?? 1,
+                ],
+                'status' => 'pending',
+            ]);
+        }
         app(ActivityLogger::class)->record('package.created', "Created package {$package->name} for {$package->location->name}.");
 
         return back()->with('success', 'Package created successfully.');
@@ -128,10 +145,10 @@ class AdminController extends Controller
     {
         $locationIds = $this->locationIds();
         $devices = Device::whereHas('customer', fn ($query) => $query->whereIn('location_id', $locationIds))
-            ->with('customer.location')->latest()->get();
+            ->with('customer.location')->latest()->latest()->paginate(15);
         $locationIds = $this->locationIds();
         $devices = Device::whereHas('customer', fn ($query) => $query->whereIn('location_id', $locationIds))
-            ->with('customer.location')->latest()->get();
+            ->with('customer.location')->latest()->latest()->paginate(15);
 
         return view('admin.devices', compact('devices'));
     }
@@ -175,7 +192,7 @@ class AdminController extends Controller
         $locationIds = $locations->pluck('id');
         $announcements = Announcement::with('location')
             ->where(fn ($query) => $query->whereNull('location_id')->orWhereIn('location_id', $locationIds))
-            ->latest()->take(30)->get();
+            ->latest()->take(30)->latest()->paginate(15);
 
         return view('admin.announcements', compact('locations', 'announcements'));
     }
@@ -212,11 +229,11 @@ class AdminController extends Controller
     {
         $locations = $this->getAdminLocations();
         $locationIds = $locations->pluck('id');
-        $smsLogs = SmsLog::with('customer.location')->whereHas('customer', fn ($query) => $query->whereIn('location_id', $locationIds))->latest()->take(100)->get();
-        $emailLogs = EmailLog::with(['customer', 'location'])->whereIn('location_id', $locationIds)->latest()->take(100)->get();
+        $smsLogs = SmsLog::with('customer.location')->whereHas('customer', fn ($query) => $query->whereIn('location_id', $locationIds))->latest()->paginate(10);
+        $emailLogs = EmailLog::with(['customer', 'location'])->whereIn('location_id', $locationIds)->latest()->take(100)->latest()->paginate(15);
         $activityLogs = Auth::user()->isSuperAdmin()
             ? ActivityLog::with('user')->latest()->take(100)->get()
-            : ActivityLog::with('user')->where('user_id', Auth::id())->latest()->take(100)->get();
+            : ActivityLog::with('user')->where('user_id', Auth::id())->latest()->take(100)->latest()->paginate(15);
 
         return view('admin.logs', compact('smsLogs', 'emailLogs', 'activityLogs'));
     }
@@ -225,9 +242,9 @@ class AdminController extends Controller
     {
         $locations = $this->getAdminLocations();
         $locationIds = $locations->pluck('id');
-        $packages = Package::whereIn('location_id', $locationIds)->with('location')->orderBy('name')->get();
+        $packages = Package::whereIn('location_id', $locationIds)->with('location')->orderBy('name')->latest()->paginate(15);
         $subscriptions = Payment::with(['customer', 'package', 'location'])
-            ->whereIn('location_id', $locationIds)->where('status', 'success')->latest()->take(25)->get();
+            ->whereIn('location_id', $locationIds)->where('status', 'success')->latest()->paginate(15);
 
         return view('admin.subscriptions', compact('locations', 'packages', 'subscriptions'));
     }
@@ -263,7 +280,7 @@ class AdminController extends Controller
         if (!empty($data['mac_address'])) {
             $macAddress = strtoupper(str_replace('-', ':', $data['mac_address']));
             abort_if($customer->devices()->count() >= 3, 422, 'This customer already has the maximum of 3 registered devices.');
-            abort_if(Device::where('mac_address', $macAddress)->exists(), 422, 'This MAC address is already registered to another customer.');
+            if (Device::where('mac_address', $macAddress)->exists()) { return back()->withErrors(['mac_address' => 'This MAC address is already registered to another customer.']); }
         }
 
         $start = $customer->expires_at?->isFuture() ? $customer->expires_at : Carbon::now();
@@ -313,7 +330,7 @@ class AdminController extends Controller
         $locationIds = $locations->pluck('id');
         $announcements = Announcement::with('location')
             ->where(fn ($query) => $query->whereNull('location_id')->orWhereIn('location_id', $locationIds))
-            ->latest()->take(30)->get();
+            ->latest()->take(30)->latest()->paginate(15);
 
         return view('admin.announcements', compact('locations', 'announcements'));
     }
@@ -350,11 +367,11 @@ class AdminController extends Controller
     {
         $locations = $this->getAdminLocations();
         $locationIds = $locations->pluck('id');
-        $smsLogs = SmsLog::with('customer.location')->whereHas('customer', fn ($query) => $query->whereIn('location_id', $locationIds))->latest()->take(100)->get();
-        $emailLogs = EmailLog::with(['customer', 'location'])->whereIn('location_id', $locationIds)->latest()->take(100)->get();
+        $smsLogs = SmsLog::with('customer.location')->whereHas('customer', fn ($query) => $query->whereIn('location_id', $locationIds))->latest()->paginate(10);
+        $emailLogs = EmailLog::with(['customer', 'location'])->whereIn('location_id', $locationIds)->latest()->take(100)->latest()->paginate(15);
         $activityLogs = Auth::user()->isSuperAdmin()
             ? ActivityLog::with('user')->latest()->take(100)->get()
-            : ActivityLog::with('user')->where('user_id', Auth::id())->latest()->take(100)->get();
+            : ActivityLog::with('user')->where('user_id', Auth::id())->latest()->take(100)->latest()->paginate(15);
 
         return view('admin.logs', compact('smsLogs', 'emailLogs', 'activityLogs'));
     }
@@ -363,9 +380,9 @@ class AdminController extends Controller
     {
         $locations = $this->getAdminLocations();
         $locationIds = $locations->pluck('id');
-        $packages = Package::whereIn('location_id', $locationIds)->with('location')->orderBy('name')->get();
+        $packages = Package::whereIn('location_id', $locationIds)->with('location')->orderBy('name')->latest()->paginate(15);
         $subscriptions = Payment::with(['customer', 'package', 'location'])
-            ->whereIn('location_id', $locationIds)->where('status', 'success')->latest()->take(25)->get();
+            ->whereIn('location_id', $locationIds)->where('status', 'success')->latest()->paginate(15);
 
         return view('admin.subscriptions', compact('locations', 'packages', 'subscriptions'));
     }
@@ -401,7 +418,7 @@ class AdminController extends Controller
         if (!empty($data['mac_address'])) {
             $macAddress = strtoupper(str_replace('-', ':', $data['mac_address']));
             abort_if($customer->devices()->count() >= 3, 422, 'This customer already has the maximum of 3 registered devices.');
-            abort_if(Device::where('mac_address', $macAddress)->exists(), 422, 'This MAC address is already registered to another customer.');
+            if (Device::where('mac_address', $macAddress)->exists()) { return back()->withErrors(['mac_address' => 'This MAC address is already registered to another customer.']); }
         }
 
         $start = $customer->expires_at?->isFuture() ? $customer->expires_at : Carbon::now();
@@ -438,6 +455,26 @@ class AdminController extends Controller
         return back()->with('success', "Subscription created for {$customer->username} through {$customer->expires_at->format('M j, Y g:i A')}.");
     }
 
+
+    public function blockSubscription($id, MikroTikService $mikrotik)
+    {
+        $customer = Customer::findOrFail($id);
+        $this->ensureManagedLocation($customer->location_id);
+        $customer->update(['status' => 'blocked']);
+        $router = $customer->location->routers()->first();
+        if ($router) $mikrotik->queueDisableUser($router, $customer);
+        return back()->with('success', 'Subscription blocked.');
+    }
+
+    public function removeSubscription($id, MikroTikService $mikrotik)
+    {
+        $customer = Customer::findOrFail($id);
+        $this->ensureManagedLocation($customer->location_id);
+        $customer->update(['status' => 'expired']);
+        $router = $customer->location->routers()->first();
+        if ($router) $mikrotik->queueRemoveUser($router, $customer);
+        return back()->with('success', 'Subscription removed.');
+    }
     private function uniqueVoucher(): string
     {
         do {
@@ -453,6 +490,26 @@ class AdminController extends Controller
         return back()->with('success', "Subscription created for {$customer->username} through {$customer->expires_at->format('M j, Y g:i A')}.");
     }
 
+
+    public function blockSubscription($id, MikroTikService $mikrotik)
+    {
+        $customer = Customer::findOrFail($id);
+        $this->ensureManagedLocation($customer->location_id);
+        $customer->update(['status' => 'blocked']);
+        $router = $customer->location->routers()->first();
+        if ($router) $mikrotik->queueDisableUser($router, $customer);
+        return back()->with('success', 'Subscription blocked.');
+    }
+
+    public function removeSubscription($id, MikroTikService $mikrotik)
+    {
+        $customer = Customer::findOrFail($id);
+        $this->ensureManagedLocation($customer->location_id);
+        $customer->update(['status' => 'expired']);
+        $router = $customer->location->routers()->first();
+        if ($router) $mikrotik->queueRemoveUser($router, $customer);
+        return back()->with('success', 'Subscription removed.');
+    }
     private function uniqueVoucher(): string
     {
         do {

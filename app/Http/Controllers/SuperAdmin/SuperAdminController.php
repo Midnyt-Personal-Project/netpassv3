@@ -35,9 +35,9 @@ class SuperAdminController extends Controller
         $recent_payments = Payment::with(['location', 'customer', 'package'])
                                   ->orderBy('created_at', 'desc')
                                   ->take(10)
-                                  ->get();
+                                  ->latest()->paginate(15);
 
-        $locations = Location::with(['admin', 'routers'])->get();
+        $locations = Location::with(['admin', 'routers'])->latest()->paginate(15);
 
         return view('superadmin.dashboard', compact('stats', 'recent_payments', 'locations'));
     }
@@ -113,6 +113,18 @@ class SuperAdminController extends Controller
         app(ActivityLogger::class)->record('router.created', "Created router {$router->router_id} for location ID {$router->location_id}.");
 
         return back()->with('success', 'Router created successfully. Generated Token: ' . $token);
+    }
+
+    public function showRouters()
+    {
+        $routers = \App\Models\Router::with('location')->latest()->paginate(15);
+        return view('superadmin.routers', compact('routers'));
+    }
+
+    public function showRouterCommands()
+    {
+        $commands = \App\Models\RouterCommand::with('router')->latest()->latest()->paginate(15);
+        return view('superadmin.router_commands', compact('commands'));
     }
 
     public function toggleAdminStatus($id)
