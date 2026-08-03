@@ -3,8 +3,7 @@
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
-use App\Http\Controllers\Api\ApiController;
-use App\Http\Controllers\Api\PaystackWebhookController;
+use App\Http\Controllers\Api\{ApiController, PaystackWebhookController};
 
 /* Router endpoints use the router ID/token headers, not browser authentication. */
 Route::post('/paystack/webhook', PaystackWebhookController::class)

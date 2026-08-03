@@ -3,8 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Facades\{Log, Validator};
 
 use App\Http\Controllers\Controller;
 use App\Models\{Router, RouterCommand};
@@ -178,6 +177,22 @@ class ApiController extends Controller
         return response()->json([
             'status' => 'success',
             'message' => "Command {$id} status updated to {$status}"
+        ]);
+    }
+
+    public function manifest(Request $request)
+    {
+        $ref = $request->header('referer');
+        $path = $ref ? parse_url($ref, PHP_URL_PATH) : '/';
+        return response()->json([
+            'name' => 'Oyalo Cloud Hotspot',
+            'short_name' => 'Oyalo',
+            'description' => 'Buy and manage hotspot access.',
+            'start_url' => $path ?: '/',
+            'display' => 'standalone',
+            'background_color' => '#0f172a',
+            'theme_color' => '#4f46e5',
+            'scope' => '/',
         ]);
     }
 

@@ -3,16 +3,15 @@
 namespace App\Http\Controllers\Admin;
 
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\{Auth, DB};
 use Illuminate\Support\Str;
 
 use App\Http\Controllers\Controller;
-use App\Jobs\SendOwnerSubscriptionEmail;
-use App\Jobs\SendSubscriptionCredentialsSms;
-use App\Models\{ActivityLog, Announcement, Customer, Device, EmailLog, Location, Package, Payment, SmsLog};
-use App\Services\{ActivityLogger, MikroTikService, SubscriptionIssuer};
+use App\Jobs\{SendOwnerSubscriptionEmail, SendSubscriptionCredentialsSms};
+use App\Models\{ActivityLog, Announcement, Customer, Device, EmailLog, Location, Package, Payment, RouterCommand, SmsLog};
+use App\Services\{ActivityLogger, MikroTikService, OwnerNotificationService, SmsService, SubscriptionIssuer};
 use App\Support\PhoneNumber;
+
 
 class AdminController extends Controller
 {
@@ -26,7 +25,7 @@ class AdminController extends Controller
 
         return $user->isSuperAdmin()
             ? Location::orderBy('name')->get()
-            : $user->locations()->orderBy('name')->get();
+            : $user->locations()->orderBy('name')->latest()->paginate(15);
     }
 
     /**
