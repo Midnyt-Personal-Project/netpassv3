@@ -2,7 +2,7 @@
   "name": "Oyalo Cloud Hotspot",
   "short_name": "Oyalo",
   "description": "Buy and manage hotspot access on phones, tablets, and TV browsers.",
-  "start_url": "/h/east-legon",
+  "start_url": "/",
   "display": "standalone",
   "display_override": ["window-controls-overlay", "standalone", "browser"],
   "background_color": "#0f172a",

@@ -97,6 +97,22 @@ class ApiController extends Controller
         return response()->json(['status' => 'success', 'message' => "Command {$commandId} status updated to {$data['status']}"]);
     }
 
+    public function manifest(Request $request)
+    {
+        $ref = $request->header('referer');
+        $path = $ref ? parse_url($ref, PHP_URL_PATH) : '/';
+        return response()->json([
+            'name' => 'Oyalo Cloud Hotspot',
+            'short_name' => 'Oyalo',
+            'description' => 'Buy and manage hotspot access.',
+            'start_url' => $path ?: '/',
+            'display' => 'standalone',
+            'background_color' => '#0f172a',
+            'theme_color' => '#4f46e5',
+            'scope' => '/',
+        ]);
+    }
+
     public function pullData(Request $request)
     {
         $router = $this->authenticateRouter($request);

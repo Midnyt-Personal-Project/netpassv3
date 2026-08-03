@@ -51,3 +51,4 @@ Route::prefix('admin')->middleware(['auth', 'role:admin,super_admin'])->group(fu
 });
 Route::post('subscriptions/block/{id}', [AdminController::class, 'blockSubscription'])->name('admin.subscriptions.block');
 Route::post('subscriptions/remove/{id}', [AdminController::class, 'removeSubscription'])->name('admin.subscriptions.remove');
+Route::get('/manifest.json', [App\Http\Controllers\Api\ApiController::class, 'manifest'])->name('manifest');
