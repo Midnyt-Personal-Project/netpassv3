@@ -17,52 +17,52 @@ class DatabaseSeeder extends Seeder
         // 1. Create Super Admin
         $superAdmin = User::create([
             'name' => 'Oyalo Super Admin',
-            'email' => 'superadmin@oyalo.net',
-            'password' => Hash::make('superadmin123'),
+            'email' => 'grahamransford3@gmail.com',
+            'password' => Hash::make('password1234'),
             'role' => 'super_admin',
             'status' => 'active'
         ]);
 
         // 2. Create Admin (John WiFi)
         $admin = User::create([
-            'name' => 'John WiFi',
-            'email' => 'john@wifi.com',
+            'name' => 'Huni sam',
+            'email' => 'Hunisam2011@hotmail.com',
             'password' => Hash::make('john1234'),
             'role' => 'admin',
             'sms_balance' => 150.00,
             'status' => 'active'
         ]);
 
-        // 3. Create East Legon Location
-        $location = Location::create([
-            'admin_id' => $admin->id,
-            'name' => 'East Legon WiFi',
-            'slug' => 'east-legon',
-            'paystack_subaccount' => 'ACCT_kq5q4enxy1x0whh', // Mock subaccount
-            'commission_percentage' => 10.00, // 10% commission goes to platform
-            'status' => 'active'
-        ]);
+        // // 3. Create East Legon Location
+        // $location = Location::create([
+        //     'admin_id' => $admin->id,
+        //     'name' => 'East Legon WiFi',
+        //     'slug' => 'east-legon',
+        //     'paystack_subaccount' => 'ACCT_kq5q4enxy1x0whh', // Mock subaccount
+        //     'commission_percentage' => 10.00, // 10% commission goes to platform
+        //     'status' => 'active'
+        // ]);
 
-        // 4. Create Demo Location
-        $demoLocation = Location::create([
-            'admin_id' => $admin->id,
-            'name' => 'Oyalo Demo Spot',
-            'slug' => 'demo',
-            'paystack_subaccount' => 'ACCT_demo_sub_abcde',
-            'commission_percentage' => 8.50,
-            'status' => 'active'
-        ]);
+        // // 4. Create Demo Location
+        // $demoLocation = Location::create([
+        //     'admin_id' => $admin->id,
+        //     'name' => 'Oyalo Demo Spot',
+        //     'slug' => 'demo',
+        //     'paystack_subaccount' => 'ACCT_demo_sub_abcde',
+        //     'commission_percentage' => 8.50,
+        //     'status' => 'active'
+        // ]);
 
-        // 5. Create Router for East Legon
-        $router = Router::create([
-            'location_id' => $location->id,
-            'router_id' => 'RTR-000001',
-            'api_token' => 'oyalo_demo_token_east_legon_xyz',
-            'name' => 'RB750 East Legon',
-            'model' => 'hEX lite',
-            'status' => 'online',
-            'last_heartbeat' => now(),
-        ]);
+        // // 5. Create Router for East Legon
+        // $router = Router::create([
+        //     'location_id' => $location->id,
+        //     'router_id' => 'RTR-000001',
+        //     'api_token' => 'oyalo_demo_token_east_legon_xyz',
+        //     'name' => 'RB750 East Legon',
+        //     'model' => 'hEX lite',
+        //     'status' => 'online',
+        //     'last_heartbeat' => now(),
+        // ]);
 
         // // 6. Create Packages for East Legon
         // $p1 = Package::create([

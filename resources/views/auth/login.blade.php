@@ -78,19 +78,7 @@
             </form>
 
             <!-- DEMO MOCK LOGIN BUTTONS -->
-            <div class="mt-6 pt-6 border-t border-slate-800/80">
-                <p class="text-[10px] text-center text-slate-500 font-extrabold uppercase tracking-widest mb-4">Quick Demo Access</p>
-                <div class="grid grid-cols-2 gap-3">
-                    <button onclick="quickLogin('superadmin@oyalo.net', 'superadmin123')" class="flex flex-col items-center bg-slate-850 hover:bg-indigo-600/10 border border-slate-800 hover:border-indigo-500/40 p-3 rounded-xl transition text-left group">
-                        <span class="text-indigo-400 font-extrabold text-[10px] uppercase">Super Admin</span>
-                        <span class="text-[9px] text-slate-500 mt-1">One-click login</span>
-                    </button>
-                    <button onclick="quickLogin('john@wifi.com', 'john1234')" class="flex flex-col items-center bg-slate-850 hover:bg-purple-600/10 border border-slate-800 hover:border-purple-500/40 p-3 rounded-xl transition text-left group">
-                        <span class="text-purple-400 font-extrabold text-[10px] uppercase">Business Admin</span>
-                        <span class="text-[9px] text-slate-500 mt-1">One-click login</span>
-                    </button>
-                </div>
-            </div>
+            
         </div>
     </div>
 

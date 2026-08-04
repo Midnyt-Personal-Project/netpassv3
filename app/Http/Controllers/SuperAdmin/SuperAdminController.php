@@ -26,7 +26,6 @@ class SuperAdminController extends Controller
             'total_sales' => $totalSales,
             'total_commission' => $platformCommission,
             'total_paystack_fees' => $paystackFees,
-            // The amount due to location owners after platform commission and Paystack charges.
             'owner_payout_total' => $totalSales - $platformCommission - $paystackFees,
         ];
 
@@ -71,7 +70,6 @@ class SuperAdminController extends Controller
             'subscription_email_notifications' => 'nullable|boolean',
         ]);
 
-        // Locations can only belong to business-admin accounts.
         User::whereKey($request->admin_id)->where('role', 'admin')->firstOrFail();
 
         $location = Location::create([
@@ -112,7 +110,6 @@ class SuperAdminController extends Controller
             'status' => 'offline'
         ]);
 
-        // A newly added router must receive profiles that existed before it.
         foreach ($router->location->packages()->get() as $package) {
             $mikrotik->queueCreateProfile($router, $package);
         }
@@ -122,27 +119,21 @@ class SuperAdminController extends Controller
         return back()->with('success', 'Router created successfully. Generated Token: '.$token);
     }
 
+    /**
+     * Display a paginated list of all routers.
+     */
     public function showRouters()
     {
         $routers = \App\Models\Router::with('location')->latest()->paginate(15);
         return view('superadmin.routers', compact('routers'));
     }
 
+    /**
+     * Display a paginated list of all router commands.
+     */
     public function showRouterCommands()
     {
-        $commands = \App\Models\RouterCommand::with('router')->latest()->latest()->paginate(15);
-        return view('superadmin.router_commands', compact('commands'));
-    }
-
-    public function showRouters()
-    {
-        $routers = \App\Models\Router::with('location')->latest()->paginate(15);
-        return view('superadmin.routers', compact('routers'));
-    }
-
-    public function showRouterCommands()
-    {
-        $commands = \App\Models\RouterCommand::with('router')->latest()->latest()->paginate(15);
+        $commands = \App\Models\RouterCommand::with('router')->latest()->paginate(15);
         return view('superadmin.router_commands', compact('commands'));
     }
 

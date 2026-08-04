@@ -181,7 +181,7 @@
                             </li>
                             <li class="flex items-center space-x-2">
                                 <i class="fa-solid fa-circle-check text-indigo-500"></i>
-                                <span>Support for 3 Smart TV devices</span>
+                                <span>Support for {{ $pkg->share_users }}  device(s)</span>
                             </li>
                         </ul>
                     </div>
