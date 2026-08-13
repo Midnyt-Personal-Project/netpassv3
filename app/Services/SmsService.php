@@ -107,17 +107,22 @@ class SmsService
 
     /**
      * Low-level gateway call. Returns [bool $ok, string $reason, ?string $rawBody].
+     *
+     * Uses the exact Arkesel URL format documented for V1 — the same request
+     * as opening this in a browser:
+     * https://sms.arkesel.com/sms/api?action=send-sms&api_key=KEY&to=NUMBER&from=SENDER&sms=MESSAGE
      */
     private function requestGateway(string $to, string $message): array
     {
+        $url = 'https://sms.arkesel.com/sms/api'
+            .'?action=send-sms'
+            .'&api_key='.rawurlencode((string) $this->apiKey)
+            .'&to='.rawurlencode($to)
+            .'&from='.rawurlencode($this->senderId)
+            .'&sms='.rawurlencode($message);
+
         try {
-            $response = Http::timeout(15)->get('https://sms.arkesel.com/sms/api', [
-                'action' => 'send-sms',
-                'api_key' => $this->apiKey,
-                'to' => $to,
-                'from' => $this->senderId,
-                'sms' => $message,
-            ]);
+            $response = Http::timeout(15)->get($url);
 
             $body = $response->body();
 
