@@ -64,6 +64,44 @@
 
 ---
 
+# Update Notes — Direct Arkesel URL for all SMS (2026-08-13)
+
+Every SMS now calls the Arkesel API URL directly, byte-for-byte the same
+request as opening this in a browser:
+
+```
+https://sms.arkesel.com/sms/api?action=send-sms
+    &api_key=YOUR_KEY&to=0244xxxxxxx&from=SenderID&sms=Message
+```
+
+## What changed
+- `AdminController::createSubscription` now sends the voucher SMS through a new
+  `sendVoucherSmsDirect()` method that builds that exact URL (key from
+  `ARKESEL_SMS_API_KEY` in .env, sender from `ARKESEL_SMS_SENDER_ID`) and calls
+  it straight away — no queue, no wrapper, no delay.
+- Number is tried local-first (0542...) with automatic 23354... retry.
+- `SmsService::requestGateway()` (announcements, expiry alerts, sms:test) now
+  builds the identical URL string too.
+- Every attempt is still logged to Admin > Logs with the raw gateway reply,
+  and the subscription confirmation message reports the real SMS result.
+
+## Files changed
+| File | What changed |
+|---|---|
+| `app/Http/Controllers/Admin/AdminController.php` | Added `sendVoucherSmsDirect()` + `storeVoucherSmsLog()`; createSubscription uses the direct URL call |
+| `app/Services/SmsService.php` | `requestGateway()` builds the exact Arkesel URL string |
+
+## Deploy steps
+1. Upload the changed files (no new migrations this time).
+2. Make sure the server `.env` has your real key:
+   `ARKESEL_SMS_API_KEY=cVBnckhteVpqb1VaZVZTbXNVcGM` (use YOUR key from
+   sms.arkesel.com/user/sms-api/info — never commit it to git).
+   `ARKESEL_SMS_SENDER_ID=OyaloWiFi` must be an approved sender ID (max 11 chars).
+3. `php artisan optimize:clear`
+4. Test: create a subscription, or run `php artisan sms:test 0244xxxxxxx "Hello"`.
+
+---
+
 # Update Notes — Local phone format (0542...) + visible SMS status (2026-08-13)
 
 **Phone numbers are now stored and displayed everywhere in local format**
