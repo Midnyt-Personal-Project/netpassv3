@@ -79,9 +79,26 @@ class Announcement extends Model
 
         if ($this->customer_id) {
             $query->whereKey($this->customer_id);
-        } elseif ($this->location_id) {
+
+            return $query;
+        }
+
+        if ($this->location_id) {
             $query->where('location_id', $this->location_id);
         }
+
+        // Each purchase creates its own customer (voucher) row, so one phone
+        // number can appear many times in this table. Announcement SMS must go
+        // out ONCE per phone number, not once per purchase. We pin the oldest
+        // row per phone (MIN id) so the chosen row stays stable even if the
+        // same number buys again while a big blast is still sending.
+        $query->whereIn('id', function ($sub) {
+            $sub->selectRaw('MIN(id)')
+                ->from('customers')
+                ->whereNotNull('phone_number')
+                ->when($this->location_id, fn ($sub) => $sub->where('location_id', $this->location_id))
+                ->groupBy('phone_number');
+        });
 
         return $query;
     }

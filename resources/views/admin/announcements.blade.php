@@ -65,7 +65,7 @@
                     <label class="block text-xs text-slate-400 mb-1">Recipient</label>
                     <label class="flex items-center gap-2 text-sm text-slate-200 py-1">
                         <input type="radio" name="sms_recipient" value="all" class="accent-indigo-500" @checked(old('sms_recipient', 'all') === 'all')>
-                        Everyone at the selected location — <span id="announcement-recipient-count" class="text-indigo-300 font-bold">0</span> customer(s)
+                        Everyone at the selected location — <span id="announcement-recipient-count" class="text-indigo-300 font-bold">0</span> unique phone number(s)
                     </label>
                     <label class="flex items-center gap-2 text-sm text-slate-200 py-1">
                         <input type="radio" name="sms_recipient" value="one" class="accent-indigo-500" @checked(old('sms_recipient') === 'one')>
@@ -89,7 +89,7 @@
                     <input type="datetime-local" name="scheduled_at" id="announcement-scheduled-at" value="{{ old('scheduled_at') }}" class="mt-2 hidden w-full bg-slate-800 border border-slate-700 rounded-lg p-2.5 text-white text-sm">
                     @error('scheduled_at')<p class="mt-1 text-xs text-rose-400">{{ $message }}</p>@enderror
                 </div>
-                <p class="text-[10px] text-slate-500"><i class="fa-solid fa-circle-info mr-1"></i>SMS messages are sent with the numbers formatted as local Ghana numbers (024xxxxxxx) for faster, more reliable delivery.</p>
+                <p class="text-[10px] text-slate-500"><i class="fa-solid fa-circle-info mr-1"></i>SMS messages are sent with the numbers formatted as local Ghana numbers (024xxxxxxx) for faster, more reliable delivery. Each phone number receives the SMS only once, even if the customer has bought several vouchers.</p>
             </div>
 
             <button class="w-full bg-indigo-600 hover:bg-indigo-500 py-3 rounded-lg text-white font-bold text-sm"><i class="fa-solid fa-paper-plane mr-1"></i> Publish</button>
