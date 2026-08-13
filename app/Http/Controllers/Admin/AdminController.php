@@ -302,6 +302,8 @@ class AdminController extends Controller
 
     /**
      * Find the customer an individual SMS should go to, by phone or voucher.
+     * Matches both local (0542...) and legacy international (233542...)
+     * spellings of the number.
      */
     protected function resolveRecipientCustomer(string $input, ?int $locationId): ?Customer
     {
@@ -311,9 +313,9 @@ class AdminController extends Controller
 
         $query = clone $scope;
 
-        $normalized = PhoneNumber::normalize($input);
-        $customer = $normalized
-            ? (clone $query)->where('phone_number', $normalized)->first()
+        $variants = PhoneNumber::variants($input);
+        $customer = $variants
+            ? (clone $query)->whereIn('phone_number', $variants)->first()
             : null;
 
         if (!$customer) {
@@ -601,7 +603,7 @@ class AdminController extends Controller
             ->orderBy('name')
             ->get(); // for the dropdown form
 
-        $subscriptions = Payment::with(['customer', 'package', 'location'])
+        $subscriptions = Payment::with(['customer.latestSmsLog', 'package', 'location'])
             ->whereIn('location_id', $locationIds)
             ->where('status', 'success')
             ->latest()
@@ -618,13 +620,15 @@ class AdminController extends Controller
         SubscriptionIssuer $issuer,
     )
     {
+        // All phone numbers are stored and shown in local format (0542069352).
+        // Both local and 233 spellings are accepted on input.
         $normalizedPhone = PhoneNumber::normalize($request->input('phone_number'));
         $request->merge(['phone_number' => $normalizedPhone ?? $request->input('phone_number')]);
 
         $data = $request->validate([
             'location_id' => 'required|integer|exists:locations,id',
             'package_id' => 'required|integer|exists:packages,id',
-            'phone_number' => ['required', 'string', 'regex:/^233[0-9]{9}$/'],
+            'phone_number' => ['required', 'string', 'regex:/^0[2-9][0-9]{8}$/'],
             'device_name' => 'nullable|required_with:mac_address|string|max:50',
             'mac_address' => ['nullable', 'required_with:device_name', 'string', 'regex:/^([0-9A-Fa-f]{2}[:-]){5}[0-9A-Fa-f]{2}$/'],
         ], [
@@ -668,17 +672,21 @@ class AdminController extends Controller
 
         // Voucher SMS is sent immediately (not through the queue) so it always
         // arrives even when no queue worker is running on the server.
-        app(SmsService::class)->sendCredentials($customer, $package->name);
+        $smsSent = app(SmsService::class)->sendCredentials($customer, $package->name);
         SendOwnerSubscriptionEmail::dispatch($payment->id);
 
         app(ActivityLogger::class)->record(
             'subscription.created',
             "Created {$package->name} subscription for voucher {$customer->voucher_code} at {$location->name}."
+            .($smsSent ? " Voucher SMS sent to {$customer->phone_number}." : ' Voucher SMS FAILED — see SMS delivery log.')
         );
 
         return back()->with(
-            'success',
+            $smsSent ? 'success' : 'warning',
             "New voucher {$customer->username} created through {$customer->expires_at->format('M j, Y g:i A')}."
+            .($smsSent
+                ? " SMS sent to {$customer->phone_number}."
+                : ' The voucher SMS could not be sent — check Admin > Logs for the reason.')
         );
     }
 
