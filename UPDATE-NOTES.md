@@ -32,7 +32,9 @@ then run the migration commands at the bottom.
 ### 3. Edit admin / account info (Paystack account etc.)
 - New **My account** page (`/admin/settings`, linked in the sidebar):
   - Admin can update their own **name, email, phone number, and password**.
-  - Admin can update the **Paystack subaccount** of every location they manage.
+- **Paystack subaccounts are super admin only.** On the same page the super admin
+  can update the Paystack subaccount of every location. Regular admins see a
+  "managed by the super admin" notice instead and cannot change them.
 - Super admin dashboard has a new **Manage Admins** section:
   - Edit any admin's name, email, phone, reset their password,
   - Suspend / activate admins (existing button, now with a list).
@@ -56,12 +58,12 @@ then run the migration commands at the bottom.
 | `app/Console/Commands/SendDueAnnouncements.php` | Command that fires scheduled SMS blasts when their time arrives |
 | `database/migrations/2026_08_13_000001_enhance_announcements_for_sms.php` | Adds `show_ticker`, `send_sms`, `customer_id`, `scheduled_at`, `sent_at` to `announcements` |
 | `database/migrations/2026_08_13_000002_add_phone_to_users_table.php` | Adds `phone` column to `users` |
-| `resources/views/admin/settings.blade.php` | New "My account" page (profile + Paystack accounts) |
+| `resources/views/admin/settings.blade.php` | New "My account" page (profile for everyone; Paystack accounts visible/editable to super admin only) |
 
 ### Modified files
 | File | What changed |
 |---|---|
-| `app/Http/Controllers/Admin/AdminController.php` | Announcement create (SMS + schedule + recipients), pause/resume, reschedule, delete; `updatePackage`; account settings + Paystack update methods |
+| `app/Http/Controllers/Admin/AdminController.php` | Announcement create (SMS + schedule + recipients), pause/resume, reschedule, delete; `updatePackage`; account settings + Paystack update methods (Paystack update is super admin only) |
 | `app/Http/Controllers/SuperAdmin/SuperAdminController.php` | `updateAdmin` method; dashboard now passes the admins list |
 | `app/Models/Announcement.php` | New fields, casts, `customer()` relation, `dueForSms()` scope, `visible()` now respects `show_ticker` |
 | `app/Models/User.php` | `phone` added to fillable |

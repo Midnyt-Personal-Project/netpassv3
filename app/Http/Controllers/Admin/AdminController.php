@@ -671,15 +671,15 @@ class AdminController extends Controller
     }
 
     /**
-     * Account settings: the signed-in admin's own info plus the Paystack
-     * subaccounts of the locations they manage.
+     * Account settings: the signed-in admin's own info. Paystack subaccounts
+     * are super-admin only and are shown to super admins on the same page.
      */
     public function showSettings()
     {
         $user = Auth::user();
         $locations = $user->isSuperAdmin()
             ? Location::with('admin')->orderBy('name')->get()
-            : $user->locations()->orderBy('name')->get();
+            : collect();
 
         return view('admin.settings', compact('user', 'locations'));
     }
@@ -715,11 +715,12 @@ class AdminController extends Controller
     }
 
     /**
-     * Update the Paystack subaccount of one of the managed locations.
+     * Update the Paystack subaccount of a location. Super admin only —
+     * business owners cannot change their own payout account.
      */
     public function updateLocationPaystack(Request $request, Location $location)
     {
-        $this->ensureManagedLocation($location->id);
+        abort_unless(Auth::user()->isSuperAdmin(), 403, 'Only the super admin can edit Paystack accounts.');
 
         $data = $request->validate([
             'paystack_subaccount' => 'nullable|string|max:100',

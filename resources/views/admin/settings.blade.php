@@ -37,33 +37,40 @@
         </form>
     </section>
 
-    <!-- Paystack accounts -->
+    <!-- Paystack accounts (super admin only) -->
     <section class="xl:col-span-2 bg-slate-900 border border-slate-800 rounded-2xl p-5 sm:p-6 shadow-xl">
         <h2 class="text-lg font-bold text-white"><i class="fa-solid fa-money-bill-transfer text-indigo-400 mr-2"></i>Paystack payout accounts</h2>
-        <p class="mt-1 text-xs text-slate-400">The Paystack subaccount where each location's customer payments are settled. Update them whenever your Paystack details change.</p>
 
-        <div class="mt-6 space-y-4">
-            @forelse($locations as $location)
-                <div class="rounded-xl border border-slate-800 bg-slate-800/40 p-4">
-                    <div class="flex flex-wrap items-center justify-between gap-2">
-                        <div>
-                            <p class="font-bold text-white">{{ $location->name }}</p>
-                            @if(auth()->user()->isSuperAdmin())
+        @if(auth()->user()->isSuperAdmin())
+            <p class="mt-1 text-xs text-slate-400">The Paystack subaccount where each location's customer payments are settled. Update them whenever the Paystack details change.</p>
+
+            <div class="mt-6 space-y-4">
+                @forelse($locations as $location)
+                    <div class="rounded-xl border border-slate-800 bg-slate-800/40 p-4">
+                        <div class="flex flex-wrap items-center justify-between gap-2">
+                            <div>
+                                <p class="font-bold text-white">{{ $location->name }}</p>
                                 <p class="text-xs text-slate-500">Owner: {{ $location->admin?->name }} ({{ $location->admin?->email }})</p>
-                            @endif
+                            </div>
+                            <span class="rounded-full bg-slate-700/40 px-2 py-1 text-[10px] text-slate-400">Commission {{ $location->commission_percentage }}%</span>
                         </div>
-                        <span class="rounded-full bg-slate-700/40 px-2 py-1 text-[10px] text-slate-400">Commission {{ $location->commission_percentage }}%</span>
+                        <form action="{{ route('admin.settings.paystack', $location) }}" method="POST" class="mt-3 flex flex-wrap items-center gap-2">
+                            @csrf
+                            <input type="text" name="paystack_subaccount" value="{{ old('paystack_subaccount', $location->paystack_subaccount) }}" placeholder="ACCT_xxxxxxxxxx" class="flex-1 min-w-52 bg-slate-800 border border-slate-700 rounded-lg p-2.5 text-white text-sm font-mono focus:outline-none focus:border-indigo-500">
+                            <button class="rounded-lg bg-indigo-600 hover:bg-indigo-500 px-4 py-2.5 text-xs text-white font-bold">Save account</button>
+                        </form>
                     </div>
-                    <form action="{{ route('admin.settings.paystack', $location) }}" method="POST" class="mt-3 flex flex-wrap items-center gap-2">
-                        @csrf
-                        <input type="text" name="paystack_subaccount" value="{{ old('paystack_subaccount', $location->paystack_subaccount) }}" placeholder="ACCT_xxxxxxxxxx" class="flex-1 min-w-52 bg-slate-800 border border-slate-700 rounded-lg p-2.5 text-white text-sm font-mono focus:outline-none focus:border-indigo-500">
-                        <button class="rounded-lg bg-indigo-600 hover:bg-indigo-500 px-4 py-2.5 text-xs text-white font-bold">Save account</button>
-                    </form>
-                </div>
-            @empty
-                <div class="py-12 text-center text-slate-500 text-sm">No locations assigned to your account yet.</div>
-            @endforelse
-        </div>
+                @empty
+                    <div class="py-12 text-center text-slate-500 text-sm">No locations have been created yet.</div>
+                @endforelse
+            </div>
+        @else
+            <div class="mt-4 rounded-xl border border-slate-800 bg-slate-800/40 p-5 text-sm text-slate-400">
+                <i class="fa-solid fa-lock text-amber-400 mr-2"></i>
+                Paystack payout accounts are managed by the super admin only.
+                Contact support if your payout account details need to change.
+            </div>
+        @endif
     </section>
 </div>
 @endsection
