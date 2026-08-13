@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Announcement;
+use App\Models\SmsLog;
 
 /**
  * Sends announcement SMS blasts directly (no queue worker required).
@@ -38,7 +39,7 @@ class AnnouncementSmsSender
         $pending = $announcement->pendingSmsRecipients()->orderBy('id')->limit($limit)->get();
 
         foreach ($pending as $customer) {
-            if ($this->sms->sendSms($customer->phone_number, $text, $customer, $announcement->id)) {
+            if ($this->sms->sendSms($customer->phone_number, $text, $customer, $announcement->id, SmsLog::TYPE_ANNOUNCEMENT)) {
                 $sent++;
             } else {
                 $failed++;

@@ -37,41 +37,76 @@ class SmsService
      * body is checked too ({code: "ok"} means success, anything else failed).
      * If a local-format number is rejected, we retry once in international
      * format (or vice versa) before giving up.
+     *
+     * Every attempt is written to the application log with the [SMS] tag and
+     * to the sms_logs table (visible in Admin > Logs) with the exact gateway
+     * reply, so failures are always diagnosable.
      */
-    public function sendSms(string $phoneNumber, string $message, ?Customer $customer = null, ?int $announcementId = null): bool
+    public function sendSms(string $phoneNumber, string $message, ?Customer $customer = null, ?int $announcementId = null, string $type = SmsLog::TYPE_OTHER): bool
     {
+        $startedAt = microtime(true);
+        $context = [
+            'type' => $type,
+            'phone' => $phoneNumber,
+            'customer' => $customer ? ($customer->voucher_code ?: $customer->username) : null,
+            'announcement_id' => $announcementId,
+            'sender_id' => $this->senderId,
+        ];
+
         if (blank($this->apiKey)) {
-            return $this->logFailure($phoneNumber, $message, $customer, $announcementId, 'ARKESEL_SMS_API_KEY is not configured in .env');
+            Log::error('[SMS] Not sent — no API key configured.', $context);
+
+            return $this->logFailure($phoneNumber, $message, $customer, $announcementId, $type, 'ARKESEL_SMS_API_KEY is not configured in .env', null, 0);
         }
 
         $attempts = $this->formatCandidates($phoneNumber);
-        $lastReason = null;
+        $reasons = [];
+        $lastRawResponse = null;
 
-        foreach ($attempts as $formatted) {
-            [$ok, $reason] = $this->requestGateway($formatted, $message);
+        foreach ($attempts as $index => $formatted) {
+            [$ok, $reason, $rawResponse] = $this->requestGateway($formatted, $message);
+            $lastRawResponse = $rawResponse;
+            $reasons[] = $formatted.': '.$reason;
 
             if ($ok) {
+                $durationMs = (int) round((microtime(true) - $startedAt) * 1000);
+
                 SmsLog::create([
                     'customer_id' => $customer?->id,
                     'announcement_id' => $announcementId,
                     'phone_number' => $formatted,
                     'message' => $message,
                     'status' => 'sent',
+                    'type' => $type,
+                    'attempts' => $index + 1,
+                    'gateway_response' => $this->summarizeGatewayResponse($rawResponse),
                 ]);
-                Log::info("SMS accepted by gateway for {$formatted}.");
+
+                Log::info('[SMS] Sent successfully.', $context + [
+                    'to' => $formatted,
+                    'attempt' => $index + 1,
+                    'duration_ms' => $durationMs,
+                    'gateway' => $rawResponse,
+                ]);
 
                 return true;
             }
 
-            $lastReason = $reason;
-            Log::warning("SMS attempt failed for {$formatted}: {$reason}");
+            Log::warning('[SMS] Attempt rejected by gateway.', $context + [
+                'to' => $formatted,
+                'attempt' => $index + 1,
+                'reason' => $reason,
+                'gateway' => $rawResponse,
+            ]);
         }
 
-        return $this->logFailure($attempts[0] ?? $phoneNumber, $message, $customer, $announcementId, (string) $lastReason);
+        $reason = implode(' | ', $reasons);
+
+        return $this->logFailure($attempts[0] ?? $phoneNumber, $message, $customer, $announcementId, $type, $reason, $lastRawResponse, count($attempts));
     }
 
     /**
-     * Low-level gateway call. Returns [bool $ok, string $reason].
+     * Low-level gateway call. Returns [bool $ok, string $reason, ?string $rawBody].
      */
     private function requestGateway(string $to, string $message): array
     {
@@ -87,7 +122,7 @@ class SmsService
             $body = $response->body();
 
             if (!$response->successful()) {
-                return [false, 'Gateway HTTP '.$response->status().': '.str($body)->limit(300)];
+                return [false, 'Gateway HTTP '.$response->status().': '.str($body)->limit(300), $body];
             }
 
             $json = json_decode($body, true);
@@ -96,20 +131,20 @@ class SmsService
                 $code = strtolower((string) ($json['code'] ?? ''));
 
                 if ($code === 'ok') {
-                    return [true, 'ok'];
+                    return [true, 'ok', $body];
                 }
 
-                return [false, $this->describeArkeselError($json)];
+                return [false, $this->describeArkeselError($json), $body];
             }
 
             // Arkesel can also answer with plain text ("OK:...").
             if (preg_match('/^OK/i', trim($body))) {
-                return [true, 'ok'];
+                return [true, 'ok', $body];
             }
 
-            return [false, 'Unexpected gateway response: '.str($body)->limit(300)];
+            return [false, 'Unexpected gateway response: '.str($body)->limit(300), $body];
         } catch (\Throwable $exception) {
-            return [false, 'Gateway exception: '.$exception->getMessage()];
+            return [false, 'Gateway exception: '.$exception->getMessage(), null];
         }
     }
 
@@ -124,16 +159,44 @@ class SmsService
             .($message ? " ({$message})" : '');
     }
 
-    private function logFailure(string $phoneNumber, string $message, ?Customer $customer, ?int $announcementId, string $reason): bool
+    /** Keep the stored gateway reply readable: decode JSON or trim long text. */
+    private function summarizeGatewayResponse(?string $raw): ?string
     {
-        Log::error("SMS delivery failed for {$phoneNumber}: {$reason}");
+        if ($raw === null || $raw === '') {
+            return null;
+        }
+
+        $json = json_decode($raw, true);
+
+        if (is_array($json)) {
+            return (string) json_encode($json, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+        }
+
+        return str($raw)->limit(2000)->toString();
+    }
+
+    private function logFailure(string $phoneNumber, string $message, ?Customer $customer, ?int $announcementId, string $type, string $reason, ?string $rawResponse, int $attempts): bool
+    {
+        Log::error('[SMS] Delivery failed.', [
+            'type' => $type,
+            'phone' => $phoneNumber,
+            'customer' => $customer ? ($customer->voucher_code ?: $customer->username) : null,
+            'announcement_id' => $announcementId,
+            'attempts' => $attempts,
+            'reason' => $reason,
+            'gateway' => $rawResponse,
+        ]);
+
         SmsLog::create([
             'customer_id' => $customer?->id,
             'announcement_id' => $announcementId,
             'phone_number' => $phoneNumber,
             'message' => $message,
             'status' => 'failed',
+            'type' => $type,
+            'attempts' => max(1, $attempts),
             'error_message' => $reason,
+            'gateway_response' => $this->summarizeGatewayResponse($rawResponse),
         ]);
 
         return false;
@@ -145,12 +208,12 @@ class SmsService
         $voucher = $customer->voucher_code ?: $customer->username;
         $message = "Welcome to Oyalo WiFi!\n\nYour WiFi voucher: {$voucher}\nUse this same voucher in both MikroTik username and password fields.\nPackage: {$packageName}\nExpires: {$expiryDate}\n\nEnjoy fast internet!";
 
-        return $this->sendSms($customer->phone_number, $message, $customer);
+        return $this->sendSms($customer->phone_number, $message, $customer, null, SmsLog::TYPE_VOUCHER);
     }
 
     public function sendExpiryNotification(Customer $customer): bool
     {
-        return $this->sendSms($customer->phone_number, 'Hello, your Oyalo WiFi package has expired. Open your browser and connect to renew your internet access.', $customer);
+        return $this->sendSms($customer->phone_number, 'Hello, your Oyalo WiFi package has expired. Open your browser and connect to renew your internet access.', $customer, null, SmsLog::TYPE_EXPIRY);
     }
 
     /**

@@ -1,5 +1,128 @@
 # Update Notes — SMS reliability fix (2026-08-13)
 
+## Why SMS was not arriving
+
+1. **Queue worker dependency (the main cause).** Voucher SMS (manual buying),
+   expiry SMS, and announcement SMS were all dispatched as queue jobs to the
+   `jobs` database table. If `queue:work` was not running (or crashed/restarted),
+   those SMS simply never left the system. The Arkesel dashboard always worked
+   because it sends directly.
+2. **Response checking bug.** Arkesel V1 always answers HTTP 200 — even for
+   failures. The old code only checked the HTTP status, so rejected messages
+   (e.g. `105 Insufficient balance`, `102 Authentication failed`) were logged
+   as "sent" and nobody could see what went wrong.
+3. **Number format.** Only one format was tried per number. If the gateway
+   rejected it, there was no second attempt.
+
+## What changed
+
+### 1. Voucher SMS (manual buy + online buy) — sent immediately
+- `AdminController::createSubscription` (manual WiFi buying) now sends the
+  voucher SMS directly during the request — no queue involved.
+- `PaymentFulfillmentService::fulfill` (Paystack webhook / online purchase)
+  also sends the voucher SMS directly.
+- The old `SendSubscriptionCredentialsSms` queue job is no longer dispatched
+  (the file is kept so any old queued rows still resolve).
+
+### 2. Expiry SMS — sent by the existing every-minute cron
+- `ExpireSubscriptions` now sends the expiry SMS directly while expiring
+  subscriptions (it already runs every minute via the scheduler).
+
+### 3. Announcement SMS — sent by the every-minute cron
+- New service `AnnouncementSmsSender` sends blasts directly, in batches
+  (default 100 SMS per scheduler minute), and tracks progress per customer
+  through the SMS log. A blast resumes safely after a crash/server restart
+  and never double-sends to the same person.
+- `announcements:send-due --limit=100` is scheduled every minute.
+- "Send now" announcements go out within a minute (the status shows
+  "Sending SMS..." until done).
+
+### 4. Real Arkesel response checking + automatic format fallback
+- The gateway response body is now validated: `{"code": "ok"}` means success;
+  any other code (102 auth failed, 103 bad number, 105 no balance, 106 bad
+  sender ID, 111 spam word, ...) is recorded as **failed** with a
+  human-readable reason in the SMS log (Admin > Logs).
+- Each number is tried first in local format (0244xxxxxx), then automatically
+  retried in international format (233244xxxxxx) if the gateway rejects it.
+
+### 5. Test command
+- `php artisan sms:test 0244xxxxxx "Hello"` sends one test SMS so you can
+  verify the key and number format from the server right after deploying.
+
+## Deploy steps (in this order)
+1. Upload the changed files.
+2. Run: `php artisan migrate` (adds `sms_logs.announcement_id`).
+3. **Make sure the scheduler cron exists and runs every minute:**
+   `* * * * * php /path/to/your/app/artisan schedule:run >> /dev/null 2>&1`
+   This is now what actually delivers expiry + announcement SMS. If you don't
+   have it, nothing will be sent.
+4. Queue worker is optional now (still fine to keep for emails).
+5. Check `ARKESEL_SMS_API_KEY` in the server `.env` is the real key from
+   sms.arkesel.com/user/sms-api/info — if the key were wrong, every SMS log
+   row now says exactly that ("Authentication failed").
+6. `php artisan optimize:clear`
+
+---
+
+# Update Notes — SMS logging & diagnostics (2026-08-13)
+
+Applied on top of the SMS reliability fix. This makes every SMS attempt fully
+visible so delivery problems can be diagnosed in seconds.
+
+## What changed
+
+### Admin > Logs — new SMS diagnostics
+- **Summary chips**: sent / failed counts for today and the last 7 days.
+- **Type badge** on every row: Voucher, Expiry, Announcement, Test, or Other.
+- **Phone format** shown next to the number (0244 format vs 233 format).
+- **Attempts column**: how many number formats were tried.
+- **"View reply"** per row: the exact raw JSON reply from Arkesel, including
+  your remaining SMS balance on successful sends.
+- **Filters**: show only Sent / only Failed, plus a free-text search across
+  phone, message, and error text.
+- Failed rows show the human-readable reason (e.g. "Insufficient SMS balance —
+  top up your Arkesel account", "Authentication failed — check
+  ARKESEL_SMS_API_KEY").
+
+### Application log (storage/logs/laravel.log)
+Every SMS attempt now writes a tagged line you can tail live:
+- `[SMS] Sent successfully.` — with type, number, attempt count, duration, raw gateway reply
+- `[SMS] Attempt rejected by gateway.` — with the exact reason
+- `[SMS] Delivery failed.` — with all attempts and reasons combined
+- `[SMS] Not sent — no API key configured.` — when ARKESEL_SMS_API_KEY is empty
+
+### Database
+- `sms_logs` gains `type`, `attempts`, and `gateway_response` columns
+  (new migration).
+
+## File list for this update
+### New files
+| File | Purpose |
+|---|---|
+| `database/migrations/2026_08_13_000004_add_details_to_sms_logs_table.php` | Adds `type`, `attempts`, `gateway_response` to `sms_logs` |
+
+### Modified files
+| File | What changed |
+|---|---|
+| `app/Services/SmsService.php` | Records type, attempts, raw gateway reply and duration; writes `[SMS]` lines to the application log |
+| `app/Models/SmsLog.php` | New fillable fields + type constants |
+| `app/Services/AnnouncementSmsSender.php` | Marks announcement SMS with the `announcement` type |
+| `app/Console/Commands/TestSms.php` | Marks test SMS with the `test` type |
+| `app/Http/Controllers/Admin/AdminController.php` | `showLogs` now computes summary stats, scopes per admin/super admin, and applies status/search filters |
+| `resources/views/admin/logs.blade.php` | Rebuilt SMS log section: summary chips, filters, type badges, attempts, gateway reply viewer, pagination |
+
+## Deploy steps
+1. Upload the changed files.
+2. Run: `php artisan migrate`
+3. `php artisan optimize:clear`
+
+## How to check SMS activity after deploying
+- **In the app**: Admin > Logs — see the summary, filter to Failed only, and
+  open "View reply" on any row to see exactly what Arkesel said.
+- **On the server**: `tail -f storage/logs/laravel.log | grep SMS` — watch
+  every SMS attempt live.
+
+
 This is a **critical SMS fix**. Apply it on top of the previous update.
 All SMS in the system now go out reliably, with no dependency on a queue worker.
 

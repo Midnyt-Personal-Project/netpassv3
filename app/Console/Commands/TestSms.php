@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Models\SmsLog;
 use App\Services\SmsService;
 use Illuminate\Console\Command;
 
@@ -19,7 +20,7 @@ class TestSms extends Command
 
         $this->line("Sending test SMS to {$phone}...");
 
-        if ($sms->sendSms($phone, $message)) {
+        if ($sms->sendSms($phone, $message, null, null, SmsLog::TYPE_TEST)) {
             $this->info('SMS accepted by the Arkesel gateway.');
 
             return self::SUCCESS;
