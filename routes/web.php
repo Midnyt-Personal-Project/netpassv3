@@ -29,6 +29,7 @@ Route::prefix('h')->group(function () {
 Route::prefix('superadmin')->middleware(['auth', 'role:super_admin'])->group(function () {
     Route::get('/', [SuperAdminController::class, 'dashboard'])->name('superadmin.dashboard');
     Route::post('admin/create', [SuperAdminController::class, 'createAdmin'])->name('superadmin.admin.create');
+    Route::post('admin/{admin}/update', [SuperAdminController::class, 'updateAdmin'])->name('superadmin.admin.update');
     Route::post('location/create', [SuperAdminController::class, 'createLocation'])->name('superadmin.location.create');
     Route::post('router/create', [SuperAdminController::class, 'createRouter'])->name('superadmin.router.create');
     Route::get('router-commands', [SuperAdminController::class, 'showRouterCommands'])->name('superadmin.router-commands');
@@ -41,17 +42,24 @@ Route::prefix('admin')->middleware(['auth', 'role:admin,super_admin'])->group(fu
     Route::get('/', [AdminController::class, 'dashboard'])->name('admin.dashboard');
     Route::get('packages', [AdminController::class, 'showPackages'])->name('admin.packages');
     Route::post('packages/create', [AdminController::class, 'createPackage'])->name('admin.packages.create');
+    Route::put('packages/{package}', [AdminController::class, 'updatePackage'])->name('admin.packages.update');
     Route::get('devices', [AdminController::class, 'showDevices'])->name('admin.devices');
     Route::post('devices/{id}/toggle', [AdminController::class, 'toggleDeviceStatus'])->name('admin.devices.toggle');
     Route::get('announcements', [AdminController::class, 'showAnnouncements'])->name('admin.announcements');
     Route::get('logs', [AdminController::class, 'showLogs'])->name('admin.logs');
     Route::post('announcements', [AdminController::class, 'createAnnouncement'])->name('admin.announcements.create');
+    Route::post('announcements/{announcement}/toggle', [AdminController::class, 'toggleAnnouncement'])->name('admin.announcements.toggle');
+    Route::post('announcements/{announcement}/reschedule', [AdminController::class, 'rescheduleAnnouncement'])->name('admin.announcements.reschedule');
+    Route::delete('announcements/{announcement}', [AdminController::class, 'deleteAnnouncement'])->name('admin.announcements.delete');
     Route::get('subscriptions', [AdminController::class, 'showSubscriptions'])->name('admin.subscriptions');
     Route::post('subscriptions/create', [AdminController::class, 'createSubscription'])->name('admin.subscriptions.create');
     Route::post('subscriptions/{id}/block', [AdminController::class, 'blockSubscription'])->name('admin.subscriptions.block');
     Route::post('subscriptions/{id}/unblock', [AdminController::class, 'unblockSubscription'])->name('admin.subscriptions.unblock');
     Route::delete('subscriptions/{id}', [AdminController::class, 'removeSubscription'])->name('admin.subscriptions.remove');
     Route::post('locations/{location}/subscription-notifications', [AdminController::class, 'updateSubscriptionNotifications'])->name('admin.locations.subscription-notifications');
+    Route::get('settings', [AdminController::class, 'showSettings'])->name('admin.settings');
+    Route::post('settings', [AdminController::class, 'updateSettings'])->name('admin.settings.update');
+    Route::post('settings/locations/{location}/paystack', [AdminController::class, 'updateLocationPaystack'])->name('admin.settings.paystack');
 });
 Route::post('subscriptions/block/{id}', [AdminController::class, 'blockSubscription'])->name('admin.subscriptions.block');
 Route::post('subscriptions/remove/{id}', [AdminController::class, 'removeSubscription'])->name('admin.subscriptions.remove');

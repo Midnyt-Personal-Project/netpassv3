@@ -134,4 +134,61 @@
             </table>
         </div>
     </div>
+
+    <!-- Manage Admins -->
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl">
+        <h4 class="text-lg font-bold text-white mb-4"><i class="fa-solid fa-users-gear mr-2 text-indigo-500"></i> Manage Admins</h4>
+        <p class="text-xs text-slate-400 -mt-2 mb-4">Edit an admin's name, email, phone, reset their password, or suspend / activate their account.</p>
+        <div class="space-y-4">
+            @forelse($admins as $admin)
+                <div class="rounded-xl border border-slate-800 bg-slate-800/40 p-4">
+                    <div class="flex flex-wrap items-center justify-between gap-3">
+                        <div>
+                            <p class="font-bold text-white">{{ $admin->name }}</p>
+                            <p class="text-xs text-slate-500">{{ $admin->email }}@if($admin->phone) · {{ $admin->phone }}@endif · {{ $admin->locations->count() }} location(s)</p>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            @if($admin->status === 'active')
+                                <span class="rounded-full bg-emerald-500/10 px-2.5 py-1 text-xs text-emerald-400">Active</span>
+                            @else
+                                <span class="rounded-full bg-rose-500/10 px-2.5 py-1 text-xs text-rose-300">Suspended</span>
+                            @endif
+                            <button onclick="document.getElementById('admin-edit-{{ $admin->id }}').classList.toggle('hidden')" class="rounded-lg border border-indigo-500/40 px-3 py-1.5 text-xs text-indigo-300 hover:bg-indigo-500/10 font-semibold"><i class="fa-solid fa-pen mr-1"></i>Edit info</button>
+                            <form method="POST" action="{{ route('superadmin.admin.toggle', $admin->id) }}">
+                                @csrf
+                                <button class="rounded-lg border border-slate-700 px-3 py-1.5 text-xs text-slate-300 hover:bg-slate-700 font-semibold">
+                                    {{ $admin->status === 'active' ? 'Suspend' : 'Activate' }}
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                    <form id="admin-edit-{{ $admin->id }}" method="POST" action="{{ route('superadmin.admin.update', $admin) }}" class="hidden mt-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 bg-slate-950/60 border border-indigo-500/30 rounded-xl p-4">
+                        @csrf
+                        <div>
+                            <label class="block text-xs text-slate-400 mb-1">Full name</label>
+                            <input type="text" name="name" value="{{ old('name', $admin->name) }}" required class="w-full bg-slate-800 border border-slate-700 rounded-lg p-2.5 text-white text-sm">
+                        </div>
+                        <div>
+                            <label class="block text-xs text-slate-400 mb-1">Email</label>
+                            <input type="email" name="email" value="{{ old('email', $admin->email) }}" required class="w-full bg-slate-800 border border-slate-700 rounded-lg p-2.5 text-white text-sm">
+                        </div>
+                        <div>
+                            <label class="block text-xs text-slate-400 mb-1">Phone</label>
+                            <input type="text" name="phone" value="{{ old('phone', $admin->phone) }}" placeholder="e.g. 0244123456" class="w-full bg-slate-800 border border-slate-700 rounded-lg p-2.5 text-white text-sm">
+                        </div>
+                        <div>
+                            <label class="block text-xs text-slate-400 mb-1">New password <span class="text-slate-600">(optional)</span></label>
+                            <input type="password" name="password" placeholder="Leave blank to keep" class="w-full bg-slate-800 border border-slate-700 rounded-lg p-2.5 text-white text-sm">
+                        </div>
+                        <div class="sm:col-span-2 lg:col-span-4 flex gap-2">
+                            <button class="rounded-lg bg-indigo-600 hover:bg-indigo-500 px-4 py-2 text-xs text-white font-bold">Save changes</button>
+                            <button type="button" onclick="document.getElementById('admin-edit-{{ $admin->id }}').classList.toggle('hidden')" class="rounded-lg border border-slate-700 px-4 py-2 text-xs text-slate-300 hover:bg-slate-700 font-semibold">Cancel</button>
+                        </div>
+                    </form>
+                </div>
+            @empty
+                <div class="py-10 text-center text-slate-500 text-sm">No admins have been created yet.</div>
+            @endforelse
+        </div>
+    </div>
 @endsection

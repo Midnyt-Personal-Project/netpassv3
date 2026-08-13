@@ -37,6 +37,12 @@ return [
     'arkesel' => [
         'api_key' => env('ARKESEL_SMS_API_KEY'),
         'sender_id' => env('ARKESEL_SMS_SENDER_ID', 'OyaloWiFi'),
+        // When true, numbers are tried in local format (0244xxxxxx) first,
+        // then automatically retried in international format (233xxxxxxxx).
+        'local_format' => (bool) env('ARKESEL_SMS_LOCAL_FORMAT', true),
+        // Max SMS sent synchronously inside one "send now" announcement
+        // request. Everything beyond this is finished by the scheduler.
+        'inline_blast_limit' => (int) env('ARKESEL_SMS_INLINE_BLAST_LIMIT', 1000),
     ],
 
     'router' => [

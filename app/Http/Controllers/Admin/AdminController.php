@@ -3,13 +3,14 @@
 namespace App\Http\Controllers\Admin;
 
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\{Auth, DB};
+use Illuminate\Support\Facades\{Auth, DB, Hash, Log};
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 
 use App\Http\Controllers\Controller;
-use App\Jobs\{SendOwnerSubscriptionEmail, SendSubscriptionCredentialsSms};
+use App\Jobs\SendOwnerSubscriptionEmail;
 use App\Models\{ActivityLog, Announcement, Customer, Device, EmailLog, Location, Package, Payment, RouterCommand, SmsLog};
-use App\Services\{ActivityLogger, MikroTikService, OwnerNotificationService, SmsService, SubscriptionIssuer};
+use App\Services\{ActivityLogger, AnnouncementSmsSender, MikroTikService, OwnerNotificationService, SmsService, SubscriptionIssuer};
 use App\Support\PhoneNumber;
 
 
@@ -163,6 +164,51 @@ class AdminController extends Controller
     }
 
     /**
+     * Update an existing package (name, price, speed, data cap...) and
+     * re-queue its profile on every router at the location.
+     */
+    public function updatePackage(Request $request, Package $package, MikroTikService $mikrotik)
+    {
+        $this->ensureManagedLocation($package->location_id);
+
+        $data = $request->validate([
+            'name' => 'required|string|max:100',
+            'price' => 'required|numeric|min:0',
+            'duration_value' => 'required|integer|min:1|max:999',
+            'duration_unit' => 'required|in:minutes,hours,days,months',
+            'speed_limit_up' => 'nullable|string|max:30',
+            'speed_limit_down' => 'nullable|string|max:30',
+            'data_limit_mb' => 'nullable|integer|min:1',
+            'share_users' => 'nullable|integer|min:1|max:100',
+        ]);
+
+        // Calculate duration in minutes
+        $multiplier = [
+            'minutes' => 1,
+            'hours' => 60,
+            'days' => 1440,
+            'months' => 43200,
+        ][$data['duration_unit']];
+
+        $data['duration_minutes'] = $data['duration_value'] * $multiplier;
+        unset($data['duration_value'], $data['duration_unit']);
+
+        $package->update($data);
+
+        // Re-sync the (possibly renamed) profile to every router.
+        foreach ($package->location->routers()->get() as $router) {
+            $mikrotik->queueCreateProfile($router, $package);
+        }
+
+        app(ActivityLogger::class)->record(
+            'package.updated',
+            "Updated package {$package->name} for {$package->location->name}."
+        );
+
+        return back()->with('success', 'Package updated successfully.');
+    }
+
+    /**
      * List all devices with pagination.
      */
     public function showDevices()
@@ -230,16 +276,56 @@ class AdminController extends Controller
     {
         $locations = $this->getAdminLocations();
         $locationIds = $locations->pluck('id');
-        $announcements = Announcement::with('location')
+        $announcements = Announcement::with(['location', 'customer'])
             ->where(fn ($query) => $query->whereNull('location_id')->orWhereIn('location_id', $locationIds))
             ->latest()
             ->paginate(15);
 
-        return view('admin.announcements', compact('locations', 'announcements'));
+        // Recipient counts shown next to the "everyone" option. Counts are
+        // DISTINCT phone numbers, matching what the blast actually sends:
+        // one SMS per phone number, no matter how many times they bought.
+        $scopeCounts = [];
+        if (Auth::user()->isSuperAdmin()) {
+            $scopeCounts['global'] = Customer::whereNotNull('phone_number')
+                ->distinct()
+                ->count('phone_number');
+        }
+        foreach ($locations as $location) {
+            $scopeCounts[$location->id] = Customer::where('location_id', $location->id)
+                ->whereNotNull('phone_number')
+                ->distinct()
+                ->count('phone_number');
+        }
+
+        return view('admin.announcements', compact('locations', 'announcements', 'scopeCounts', 'locationIds'));
     }
 
     /**
-     * Create a new announcement (global or location-specific).
+     * Find the customer an individual SMS should go to, by phone or voucher.
+     */
+    protected function resolveRecipientCustomer(string $input, ?int $locationId): ?Customer
+    {
+        $scope = $locationId
+            ? Customer::where('location_id', $locationId)
+            : Customer::whereIn('location_id', $this->locationIds());
+
+        $query = clone $scope;
+
+        $normalized = PhoneNumber::normalize($input);
+        $customer = $normalized
+            ? (clone $query)->where('phone_number', $normalized)->first()
+            : null;
+
+        if (!$customer) {
+            $customer = (clone $query)->where('voucher_code', Str::upper(trim($input)))->first();
+        }
+
+        return $customer;
+    }
+
+    /**
+     * Create a new announcement (global or location-specific) as a portal
+     * ticker and/or an SMS blast, either now or scheduled for later.
      */
     public function createAnnouncement(Request $request)
     {
@@ -249,56 +335,257 @@ class AdminController extends Controller
             'message' => 'required|string|max:240',
             'priority' => 'nullable|integer|min:0|max:100',
             'ends_at' => 'nullable|date|after:now',
+            'show_ticker' => 'nullable|boolean',
+            'send_sms' => 'nullable|boolean',
+            'sms_recipient' => 'nullable|required_if:send_sms,1|in:all,one',
+            'recipient_phone' => 'nullable|required_if:sms_recipient,one|string|max:30',
+            'sms_schedule' => 'nullable|required_if:send_sms,1|in:now,later',
+            'scheduled_at' => 'nullable|required_if:sms_schedule,later|date|after:now',
         ]);
 
-        // Global ticker reserved for super admin only
-        if (empty($data['location_id'])) {
-            abort_unless(Auth::user()->isSuperAdmin(), 403, 'Only the super admin can publish global news.');
-        } else {
-            $this->ensureManagedLocation((int) $data['location_id']);
+        if (empty($data['show_ticker']) && empty($data['send_sms'])) {
+            return back()
+                ->withErrors(['send_sms' => 'Pick at least one: show it on the portal ticker, or send it by SMS.'])
+                ->withInput();
         }
 
+        // Global ticker reserved for super admin only
+        $locationId = isset($data['location_id']) ? (int) $data['location_id'] : null;
+        if ($locationId === null) {
+            abort_unless(Auth::user()->isSuperAdmin(), 403, 'Only the super admin can publish global news.');
+        } else {
+            $this->ensureManagedLocation($locationId);
+        }
+
+        // Resolve the single recipient when "one customer" was chosen.
+        $customer = null;
+        if (!empty($data['send_sms']) && ($data['sms_recipient'] ?? null) === 'one') {
+            $customer = $this->resolveRecipientCustomer($data['recipient_phone'], $locationId);
+
+            if (!$customer) {
+                return back()
+                    ->withErrors(['recipient_phone' => 'No customer with that phone number or voucher was found in the selected location.'])
+                    ->withInput();
+            }
+        }
+
+        $sendSms = !empty($data['send_sms']);
+        $scheduledAt = $sendSms && ($data['sms_schedule'] ?? null) === 'later'
+            ? $data['scheduled_at']
+            : null;
+
         $announcement = Announcement::create([
-            ...$data,
+            'location_id' => $locationId,
             'created_by' => Auth::id(),
-            'is_active' => true,
+            'customer_id' => $customer?->id,
+            'title' => $data['title'] ?? null,
+            'message' => $data['message'],
             'priority' => $data['priority'] ?? 0,
+            'ends_at' => $data['ends_at'] ?? null,
+            'show_ticker' => !empty($data['show_ticker']),
+            'send_sms' => $sendSms,
+            'scheduled_at' => $scheduledAt,
+            'is_active' => true,
         ]);
 
+        // "Send now" announcements go out immediately, during this request —
+        // no queue, no waiting for the scheduler. (Scheduled announcements are
+        // still triggered by the every-minute cron at their chosen time.)
+        $inlineResult = null;
+        if ($sendSms && !$scheduledAt) {
+            $inlineResult = $this->sendAnnouncementSmsInline($announcement);
+        }
+
+        $detail = $sendSms
+            ? ($scheduledAt
+                ? 'SMS blast scheduled for '.$announcement->scheduled_at->format('M j, Y g:i A').'.'
+                : $this->describeInlineResult($inlineResult, $customer))
+            : '';
+
         app(ActivityLogger::class)->record(
-            'ticker.published',
-            "Published " . ($announcement->location_id ? 'location' : 'global') . " ticker: {$announcement->message}"
+            'announcement.created',
+            "Published ".($announcement->location_id ? 'location' : 'global')." announcement: {$announcement->message}. {$detail}"
         );
 
-        return back()->with(
-            'success',
-            empty($data['location_id']) ? 'Global news ticker published.' : 'Location news ticker published.'
-        );
+        return back()->with('success', 'Announcement published. '.$detail);
     }
 
     /**
-     * Show logs (SMS, email, activity) with pagination.
+     * Send a "send now" announcement SMS blast synchronously, right inside
+     * this request. A configurable cap keeps huge blasts from timing out;
+     * anything beyond the cap is finished by the every-minute scheduler.
+     *
+     * @return array{sent: int, failed: int, finished: bool}|null
      */
-    public function showLogs()
+    protected function sendAnnouncementSmsInline(Announcement $announcement): ?array
+    {
+        $limit = max(1, (int) config('services.arkesel.inline_blast_limit', 1000));
+
+        try {
+            return app(AnnouncementSmsSender::class)->sendChunk($announcement, $limit);
+        } catch (\Throwable $exception) {
+            Log::error('[SMS] Inline announcement blast failed and will be retried by the scheduler. '.$exception->getMessage(), [
+                'announcement_id' => $announcement->id,
+            ]);
+
+            return ['sent' => 0, 'failed' => 0, 'finished' => false];
+        }
+    }
+
+    /**
+     * @param array{sent: int, failed: int, finished: bool}|null $result
+     */
+    protected function describeInlineResult(?array $result, ?Customer $customer): string
+    {
+        if ($customer) {
+            return ($result && $result['sent'] > 0)
+                ? "SMS sent to {$customer->phone_number}."
+                : 'SMS will be sent to '.$customer->phone_number.' within a minute.';
+        }
+
+        if (!$result) {
+            return 'SMS blast to all customers is being sent.';
+        }
+
+        $summary = "SMS sent to {$result['sent']} customer(s)";
+
+        if ($result['failed'] > 0) {
+            $summary .= ", {$result['failed']} failed (see Admin > Logs)";
+        }
+
+        if (!$result['finished']) {
+            $summary .= ' — the remaining recipients go out automatically within the next few minutes.';
+        }
+
+        return $summary.'.';
+    }
+
+    /**
+     * Pause or resume an announcement (hides the ticker and cancels any
+     * scheduled SMS blast that has not gone out yet).
+     */
+    public function toggleAnnouncement(Announcement $announcement)
+    {
+        $this->ensureCanManageAnnouncement($announcement);
+
+        $paused = !$announcement->isPaused();
+        $announcement->update(['is_active' => !$paused]);
+
+        app(ActivityLogger::class)->record(
+            'announcement.'.($paused ? 'paused' : 'resumed'),
+            ($paused ? 'Paused' : 'Resumed')." announcement: {$announcement->message}"
+        );
+
+        return back()->with('success', $paused
+            ? 'Announcement paused. Any scheduled SMS has been cancelled.'
+            : 'Announcement resumed.');
+    }
+
+    /**
+     * Move a scheduled SMS blast to a new date (or re-send an already sent one).
+     */
+    public function rescheduleAnnouncement(Request $request, Announcement $announcement)
+    {
+        $this->ensureCanManageAnnouncement($announcement);
+
+        $data = $request->validate([
+            'scheduled_at' => 'required|date|after:now',
+        ]);
+
+        $announcement->update([
+            'scheduled_at' => $data['scheduled_at'],
+            'sent_at' => null,
+            'is_active' => true,
+        ]);
+
+        app(ActivityLogger::class)->record(
+            'announcement.rescheduled',
+            "Rescheduled announcement SMS to {$announcement->scheduled_at->format('M j, Y g:i A')}: {$announcement->message}"
+        );
+
+        return back()->with('success', 'SMS rescheduled for '.$announcement->scheduled_at->format('M j, Y g:i A').'.');
+    }
+
+    /**
+     * Delete an announcement entirely.
+     */
+    public function deleteAnnouncement(Announcement $announcement)
+    {
+        $this->ensureCanManageAnnouncement($announcement);
+
+        $announcement->delete();
+
+        app(ActivityLogger::class)->record(
+            'announcement.deleted',
+            "Deleted announcement: {$announcement->message}"
+        );
+
+        return back()->with('success', 'Announcement deleted.');
+    }
+
+    /**
+     * Only the super admin may manage global items; admins may manage items
+     * belonging to one of their own locations.
+     */
+    protected function ensureCanManageAnnouncement(Announcement $announcement): void
+    {
+        if ($announcement->location_id === null) {
+            abort_unless(Auth::user()->isSuperAdmin(), 403, 'Only the super admin can manage global announcements.');
+            return;
+        }
+
+        $this->ensureManagedLocation($announcement->location_id);
+    }
+
+    /**
+     * Show logs (SMS, email, activity) with pagination, summary stats and
+     * filters so SMS delivery can be diagnosed at a glance.
+     */
+    public function showLogs(Request $request)
     {
         $locations = $this->getAdminLocations();
         $locationIds = $locations->pluck('id');
+        $isSuper = Auth::user()->isSuperAdmin();
 
-        $smsLogs = SmsLog::with('customer.location')
-            ->whereHas('customer', fn ($query) => $query->whereIn('location_id', $locationIds))
-            ->latest()
-            ->paginate(15);
+        $smsBase = SmsLog::with(['customer.location', 'announcement'])
+            ->when(!$isSuper, fn ($query) => $query->whereHas('customer', fn ($query) => $query->whereIn('location_id', $locationIds)));
+
+        // Summary: today + last 7 days, within the caller's scope.
+        $smsStats = [
+            'today_sent' => (clone $smsBase)->whereDate('created_at', today())->where('status', 'sent')->count(),
+            'today_failed' => (clone $smsBase)->whereDate('created_at', today())->where('status', 'failed')->count(),
+            'week_sent' => (clone $smsBase)->where('created_at', '>=', now()->subDays(7))->where('status', 'sent')->count(),
+            'week_failed' => (clone $smsBase)->where('created_at', '>=', now()->subDays(7))->where('status', 'failed')->count(),
+        ];
+
+        $smsQuery = clone $smsBase;
+
+        if ($request->filled('sms_status') && in_array($request->query('sms_status'), ['sent', 'failed'], true)) {
+            $smsQuery->where('status', $request->query('sms_status'));
+        }
+
+        if ($request->filled('sms_search')) {
+            $search = trim((string) $request->query('sms_search'));
+            $smsQuery->where(function ($query) use ($search) {
+                $query->where('phone_number', 'like', "%{$search}%")
+                    ->orWhere('message', 'like', "%{$search}%")
+                    ->orWhere('error_message', 'like', "%{$search}%")
+                    ->orWhere('type', 'like', "%{$search}%");
+            });
+        }
+
+        $smsLogs = $smsQuery->latest()->paginate(15);
 
         $emailLogs = EmailLog::with(['customer', 'location'])
             ->whereIn('location_id', $locationIds)
             ->latest()
             ->paginate(15);
 
-        $activityLogs = Auth::user()->isSuperAdmin()
+        $activityLogs = $isSuper
             ? ActivityLog::with('user')->latest()->paginate(15)
             : ActivityLog::with('user')->where('user_id', Auth::id())->latest()->paginate(15);
 
-        return view('admin.logs', compact('smsLogs', 'emailLogs', 'activityLogs'));
+        return view('admin.logs', compact('smsLogs', 'smsStats', 'emailLogs', 'activityLogs'));
     }
 
     /**
@@ -379,7 +666,9 @@ class AdminController extends Controller
             return [$customer, $payment];
         }, 3);
 
-        SendSubscriptionCredentialsSms::dispatch($payment->id);
+        // Voucher SMS is sent immediately (not through the queue) so it always
+        // arrives even when no queue worker is running on the server.
+        app(SmsService::class)->sendCredentials($customer, $package->name);
         SendOwnerSubscriptionEmail::dispatch($payment->id);
 
         app(ActivityLogger::class)->record(
@@ -466,6 +755,72 @@ class AdminController extends Controller
         );
 
         return back()->with('success', 'Subscription removed successfully.');
+    }
+
+    /**
+     * Account settings: the signed-in admin's own info. Paystack subaccounts
+     * are super-admin only and are shown to super admins on the same page.
+     */
+    public function showSettings()
+    {
+        $user = Auth::user();
+        $locations = $user->isSuperAdmin()
+            ? Location::with('admin')->orderBy('name')->get()
+            : collect();
+
+        return view('admin.settings', compact('user', 'locations'));
+    }
+
+    /**
+     * Update the signed-in user's own name, email, phone and password.
+     */
+    public function updateSettings(Request $request)
+    {
+        $user = Auth::user();
+
+        $data = $request->validate([
+            'name' => 'required|string|max:255',
+            'email' => ['required', 'email', 'max:255', Rule::unique('users', 'email')->ignore($user->id)],
+            'phone' => 'nullable|string|max:20',
+            'password' => 'nullable|string|min:6|confirmed',
+        ]);
+
+        if (!empty($data['password'])) {
+            $data['password'] = Hash::make($data['password']);
+        } else {
+            unset($data['password']);
+        }
+
+        $user->update($data);
+
+        app(ActivityLogger::class)->record(
+            'account.updated',
+            "{$user->email} updated their own account details."
+        );
+
+        return back()->with('success', 'Your account details were updated.');
+    }
+
+    /**
+     * Update the Paystack subaccount of a location. Super admin only —
+     * business owners cannot change their own payout account.
+     */
+    public function updateLocationPaystack(Request $request, Location $location)
+    {
+        abort_unless(Auth::user()->isSuperAdmin(), 403, 'Only the super admin can edit Paystack accounts.');
+
+        $data = $request->validate([
+            'paystack_subaccount' => 'nullable|string|max:100',
+        ]);
+
+        $location->update($data);
+
+        app(ActivityLogger::class)->record(
+            'location.paystack_updated',
+            "Updated Paystack subaccount for {$location->name}."
+        );
+
+        return back()->with('success', "Paystack account for {$location->name} was updated.");
     }
 
 }
