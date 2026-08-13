@@ -8,7 +8,7 @@ use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 
 use App\Http\Controllers\Controller;
-use App\Jobs\{SendAnnouncementSms, SendOwnerSubscriptionEmail, SendSubscriptionCredentialsSms};
+use App\Jobs\SendOwnerSubscriptionEmail;
 use App\Models\{ActivityLog, Announcement, Customer, Device, EmailLog, Location, Package, Payment, RouterCommand, SmsLog};
 use App\Services\{ActivityLogger, MikroTikService, OwnerNotificationService, SmsService, SubscriptionIssuer};
 use App\Support\PhoneNumber;
@@ -381,16 +381,14 @@ class AdminController extends Controller
             'is_active' => true,
         ]);
 
-        if ($sendSms && !$scheduledAt) {
-            SendAnnouncementSms::dispatch($announcement->id);
-        }
-
+        // "Send now" blasts are picked up by the every-minute scheduler
+        // (announcements:send-due). This works even without a queue worker.
         $detail = $sendSms
             ? ($scheduledAt
                 ? 'SMS blast scheduled for '.$announcement->scheduled_at->format('M j, Y g:i A').'.'
                 : ($customer
-                    ? "SMS is being sent to {$customer->phone_number}."
-                    : 'SMS blast to all customers is being sent.'))
+                    ? "SMS is being sent to {$customer->phone_number} (within a minute)."
+                    : 'SMS blast to all customers is being sent (within a minute).'))
             : '';
 
         app(ActivityLogger::class)->record(
@@ -581,7 +579,9 @@ class AdminController extends Controller
             return [$customer, $payment];
         }, 3);
 
-        SendSubscriptionCredentialsSms::dispatch($payment->id);
+        // Voucher SMS is sent immediately (not through the queue) so it always
+        // arrives even when no queue worker is running on the server.
+        app(SmsService::class)->sendCredentials($customer, $package->name);
         SendOwnerSubscriptionEmail::dispatch($payment->id);
 
         app(ActivityLogger::class)->record(

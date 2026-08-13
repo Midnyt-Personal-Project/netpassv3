@@ -8,6 +8,7 @@ class SmsLog extends Model
 {
     protected $fillable = [
         'customer_id',
+        'announcement_id',
         'phone_number',
         'message',
         'status',
@@ -17,5 +18,10 @@ class SmsLog extends Model
     public function customer()
     {
         return $this->belongsTo(Customer::class);
+    }
+
+    public function announcement()
+    {
+        return $this->belongsTo(Announcement::class);
     }
 }
