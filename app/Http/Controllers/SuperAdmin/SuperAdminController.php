@@ -35,8 +35,9 @@ class SuperAdminController extends Controller
                                   ->latest()->paginate(15);
 
         $locations = Location::with(['admin', 'routers'])->latest()->paginate(15);
+        $admins = User::where('role', 'admin')->with('locations')->latest()->get();
 
-        return view('superadmin.dashboard', compact('stats', 'recent_payments', 'locations'));
+        return view('superadmin.dashboard', compact('stats', 'recent_payments', 'locations', 'admins'));
     }
 
     public function createAdmin(Request $request)
@@ -145,5 +146,32 @@ class SuperAdminController extends Controller
         app(ActivityLogger::class)->record('admin.status_changed', "Admin {$admin->email} is now {$admin->status}.");
 
         return back()->with('success', "Admin status updated to {$admin->status}.");
+    }
+
+    /**
+     * Update an admin's info (name, email, phone) and optionally reset the password.
+     */
+    public function updateAdmin(Request $request, User $admin)
+    {
+        abort_unless($admin->role === 'admin', 404);
+
+        $data = $request->validate([
+            'name' => 'required|string|max:255',
+            'email' => ['required', 'email', 'max:255', \Illuminate\Validation\Rule::unique('users', 'email')->ignore($admin->id)],
+            'phone' => 'nullable|string|max:20',
+            'password' => 'nullable|string|min:6',
+        ]);
+
+        if (!empty($data['password'])) {
+            $data['password'] = Hash::make($data['password']);
+        } else {
+            unset($data['password']);
+        }
+
+        $admin->update($data);
+
+        app(ActivityLogger::class)->record('admin.updated', "Updated admin account {$admin->email}.");
+
+        return back()->with('success', "Admin {$admin->name} was updated.");
     }
 }

@@ -90,7 +90,15 @@
                         <tr>
                             <td class="py-3">
                                 <p class="font-semibold text-white">{{ $subscription->customer?->username ?? 'Pending customer' }}</p>
-                                <p class="text-xs text-slate-500">{{ $subscription->customer?->phone_number }}</p>
+                                <p class="text-xs text-slate-500">{{ $subscription->customer?->phone_number }}
+                                    @if($subscription->customer?->latestSmsLog)
+                                        @if($subscription->customer->latestSmsLog->status === 'sent')
+                                            <span class="ml-1 text-emerald-400" title="Voucher SMS sent {{ $subscription->customer->latestSmsLog->created_at->format('d M H:i') }}"><i class="fa-solid fa-circle-check"></i> SMS sent</span>
+                                        @else
+                                            <span class="ml-1 text-rose-400" title="{{ $subscription->customer->latestSmsLog->error_message ?? 'SMS failed' }}"><i class="fa-solid fa-circle-xmark"></i> SMS failed</span>
+                                        @endif
+                                    @endif
+                                </p>
                             </td>
                             <td class="py-3 text-slate-300">{{ $subscription->package->name }}</td>
                             <td class="py-3 text-slate-300">{{ $subscription->location->name }}</td>

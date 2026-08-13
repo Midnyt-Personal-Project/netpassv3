@@ -3,7 +3,6 @@
 namespace App\Services;
 
 use App\Jobs\SendOwnerSubscriptionEmail;
-use App\Jobs\SendSubscriptionCredentialsSms;
 use App\Models\Package;
 use App\Models\Payment;
 use App\Support\PhoneNumber;
@@ -33,7 +32,10 @@ class PaymentFulfillmentService
                 return [$lockedPayment, $lockedPayment->customer, false];
             }
 
-            $phone = $lockedPayment->purchaser_phone ?: PhoneNumber::normalize($fallbackPhone);
+            // Standardize on the local format (0542...) like every other path.
+            $phone = PhoneNumber::normalize($lockedPayment->purchaser_phone)
+                ?: PhoneNumber::normalize($fallbackPhone);
+
             if (!$phone) {
                 throw new RuntimeException('The payment has no valid purchaser phone number.');
             }
@@ -66,7 +68,9 @@ class PaymentFulfillmentService
 
             // External gateways run in queue workers, so Paystack webhooks can
             // acknowledge the payment immediately after durable fulfillment.
-            SendSubscriptionCredentialsSms::dispatch($payment->id);
+            // Voucher SMS is sent right away (not queued) so it always arrives
+            // even when no queue worker is running.
+            app(SmsService::class)->sendCredentials($customer, $payment->package->name);
             SendOwnerSubscriptionEmail::dispatch($payment->id);
 
             $this->activity->record(

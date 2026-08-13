@@ -10,9 +10,9 @@
 @php
     $super = auth()->user()->isSuperAdmin();
     $nav = $super ? [
-        ['superadmin.dashboard','/superadmin','fa-gauge','Super dashboard'], ['admin.dashboard','/admin','fa-chart-line','All locations'], ['admin.packages','/admin/packages','fa-cubes','Packages'], ['admin.devices','/admin/devices','fa-tv','TV & devices'], ['admin.announcements','/admin/announcements','fa-bullhorn','News ticker'], ['admin.subscriptions','/admin/subscriptions','fa-user-plus','Subscriptions'], ['superadmin.routers','/superadmin/routers','fa-server','Routers'], ['admin.logs','/admin/logs','fa-clipboard-list','Logs'],['superadmin.router-commands','/superadmin/router-commands','fa-terminal','Router commands'],
+        ['superadmin.dashboard','/superadmin','fa-gauge','Super dashboard'], ['admin.dashboard','/admin','fa-chart-line','All locations'], ['admin.packages','/admin/packages','fa-cubes','Packages'], ['admin.devices','/admin/devices','fa-tv','TV & devices'], ['admin.announcements','/admin/announcements','fa-bullhorn','Announcements'], ['admin.subscriptions','/admin/subscriptions','fa-user-plus','Subscriptions'], ['superadmin.routers','/superadmin/routers','fa-server','Routers'], ['admin.logs','/admin/logs','fa-clipboard-list','Logs'],['superadmin.router-commands','/superadmin/router-commands','fa-terminal','Router commands'], ['admin.settings','/admin/settings','fa-user-gear','My account'],
     ] : [
-        ['admin.dashboard','/admin','fa-gauge','Dashboard'], ['admin.packages','/admin/packages','fa-cubes','Packages'], ['admin.devices','/admin/devices','fa-tv','TV & devices'], ['admin.announcements','/admin/announcements','fa-bullhorn','News ticker'], ['admin.subscriptions','/admin/subscriptions','fa-user-plus','Subscriptions'], ['admin.logs','/admin/logs','fa-clipboard-list','Logs'],
+        ['admin.dashboard','/admin','fa-gauge','Dashboard'], ['admin.packages','/admin/packages','fa-cubes','Packages'], ['admin.devices','/admin/devices','fa-tv','TV & devices'], ['admin.announcements','/admin/announcements','fa-bullhorn','Announcements'], ['admin.subscriptions','/admin/subscriptions','fa-user-plus','Subscriptions'], ['admin.logs','/admin/logs','fa-clipboard-list','Logs'], ['admin.settings','/admin/settings','fa-user-gear','My account'],
     ];
 @endphp
 <div id="nav-backdrop" class="fixed inset-0 bg-slate-950/70 z-30 hidden md:hidden" onclick="toggleSidebar(false)"></div>
@@ -32,6 +32,7 @@
     </header>
     <main class="p-4 sm:p-6 lg:p-8 flex-grow max-w-[1700px] w-full mx-auto">
         @if(session('success'))<div class="mb-5 bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 p-4 rounded-xl text-sm"><i class="fa-solid fa-circle-check mr-2"></i>{{ session('success') }}</div>@endif
+        @if(session('warning'))<div class="mb-5 bg-amber-500/10 border border-amber-500/20 text-amber-300 p-4 rounded-xl text-sm"><i class="fa-solid fa-triangle-exclamation mr-2"></i>{{ session('warning') }}</div>@endif
         @if($errors->any())<div class="mb-5 bg-rose-500/10 border border-rose-500/20 text-rose-200 p-4 rounded-xl text-sm">@foreach($errors->all() as $error)<p>{{ $error }}</p>@endforeach</div>@endif
         @yield('content')
     </main>
