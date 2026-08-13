@@ -54,35 +54,54 @@ class ApiController extends Controller
     }
 
     public function heartbeat(Request $request)
-    {
-        $router = $this->authenticateRouter($request);
-        if (!$router) {
-            return response()->json(['error' => 'Unauthorized router'], 401);
-        }
+{
+    // Authenticate and identify the exact router from X-Router-ID + X-Router-Token
+    $router = $this->authenticateRouter($request);
 
-        $data = $request->validate(['model' => ['nullable', 'string', 'max:100']]);
-        $wasOffline = $router->status !== 'online';
-        $router->update([
-            'last_heartbeat' => now(),
-            'status' => 'online',
-            'model' => $data['model'] ?? $router->model
-        ]);
-
-        if ($wasOffline) {
-            $this->activityLogger->record(
-                'router.online',
-                "Router {$router->router_id} checked in and is online.",
-                null,
-                $request->ip()
-            );
-        }
-
+    if (!$router) {
         return response()->json([
-            'status' => 'success',
-            'message' => 'Heartbeat acknowledged',
-            'timestamp' => now()->toIso8601String()
-        ]);
+            'status' => 'error',
+            'message' => 'Unauthorized router',
+        ], 401);
     }
+
+    // Validate heartbeat data
+    $data = $request->validate([
+        'model' => ['nullable', 'string', 'max:100'],
+        'identity' => ['nullable', 'string', 'max:100'],
+        'version' => ['nullable', 'string', 'max:50'],
+        'board' => ['nullable', 'string', 'max:100'],
+        'uptime' => ['nullable', 'string', 'max:100'],
+    ]);
+
+    $wasOffline = $router->status !== 'online';
+
+    // Update THIS particular router
+    $router->update([
+        'status' => 'online',
+        'last_heartbeat' => now(),
+        'name' => $data['identity'] ?? $router->name,
+        'model' => $data['model'] ?? $data['board'] ?? $router->model,
+    ]);
+
+    if ($wasOffline) {
+        $this->activityLogger->record(
+            'router.online',
+            "Router {$router->router_id} checked in and is online.",
+            null,
+            $request->ip()
+        );
+    }
+
+    return response()->json([
+        'status' => 'success',
+        'message' => 'Heartbeat acknowledged',
+        'router_id' => $router->router_id,
+        'router_status' => $router->status,
+        'last_heartbeat' => $router->last_heartbeat?->toIso8601String(),
+        'timestamp' => now()->toIso8601String(),
+    ]);
+}
 
     public function fetchCommands(Request $request)
     {

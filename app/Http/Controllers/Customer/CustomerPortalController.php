@@ -2,15 +2,15 @@
 
 namespace App\Http\Controllers\Customer;
 
+use Illuminate\Http\{RedirectResponse, Request};
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
+use Throwable;
+
 use App\Http\Controllers\Controller;
 use App\Models\{Announcement, Customer, Device, Location, Package, Payment};
 use App\Services\{MikroTikService, PaymentFulfillmentService, PaystackService};
 use App\Support\PhoneNumber;
-use Illuminate\Http\RedirectResponse;
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Str;
-use Throwable;
 
 class CustomerPortalController extends Controller
 {
@@ -18,9 +18,7 @@ class CustomerPortalController extends Controller
         private readonly PaystackService $paystack,
         private readonly MikroTikService $mikrotik,
         private readonly PaymentFulfillmentService $paymentFulfillment,
-    )
-    {
-    }
+    ) {}
 
     /** View a location's public hotspot portal. */
     public function showPortal(string $slug, Request $request)
@@ -33,13 +31,13 @@ class CustomerPortalController extends Controller
         $username = $request->cookie('oyalo_customer_username');
         $customer = $username
             ? Customer::with(['activePackage', 'devices'])
-                ->where('username', $username)
-                ->where('location_id', $location->id)
-                ->first()
+            ->where('username', $username)
+            ->where('location_id', $location->id)
+            ->first()
             : null;
 
         $announcements = Announcement::visible()
-            ->where(fn ($query) => $query->whereNull('location_id')->orWhere('location_id', $location->id))
+            ->where(fn($query) => $query->whereNull('location_id')->orWhere('location_id', $location->id))
             ->orderByDesc('priority')
             ->oldest()
             ->get();
@@ -70,14 +68,36 @@ class CustomerPortalController extends Controller
     /** Initialize a Paystack checkout and persist everything needed by its callback. */
     public function checkout(Request $request, string $slug): RedirectResponse
     {
-        $normalizedPhone = PhoneNumber::normalize($request->input('phone_number'));
-        $request->merge(['phone_number' => $normalizedPhone ?? $request->input('phone_number')]);
+        $phone = trim((string) $request->input('phone_number'));
+
+        // Convert 233XXXXXXXXX to 0XXXXXXXXX if somebody enters international format
+        if (preg_match('/^233([0-9]{9})$/', $phone, $matches)) {
+            $phone = '0' . $matches[1];
+        }
+
+        $request->merge([
+            'phone_number' => $phone,
+        ]);
 
         $data = $request->validate([
-            'phone_number' => ['required', 'string', 'regex:/^233[0-9]{9}$/'],
+            'phone_number' => [
+                'required',
+                'string',
+                'regex:/^0[2-9][0-9]{8}$/',
+            ],
             'package_id' => ['required', 'integer', 'exists:packages,id'],
-            'mac_address' => ['nullable', 'required_with:device_name', 'string', 'regex:/^([0-9A-Fa-f]{2}[:-]){5}[0-9A-Fa-f]{2}$/'],
-            'device_name' => ['nullable', 'required_with:mac_address', 'string', 'max:50'],
+            'mac_address' => [
+                'nullable',
+                'required_with:device_name',
+                'string',
+                'regex:/^([0-9A-Fa-f]{2}[:-]){5}[0-9A-Fa-f]{2}$/',
+            ],
+            'device_name' => [
+                'nullable',
+                'required_with:mac_address',
+                'string',
+                'max:50',
+            ],
         ], [
             'phone_number.regex' => 'Enter a valid Ghana phone number, for example 0244123456.',
         ]);
@@ -113,7 +133,7 @@ class CustomerPortalController extends Controller
         ]);
 
         $paystackData = $this->paystack->initializeTransaction(
-            $data['phone_number'].'@oyalo.net',
+            $data['phone_number'] . '@oyalo.net',
             (float) $package->price,
             $reference,
             route('customer.payment.callback', ['slug' => $slug]),
@@ -246,7 +266,7 @@ class CustomerPortalController extends Controller
 
         $macAddress = Str::upper(str_replace('-', ':', $data['mac_address']));
         $alreadyRegistered = Device::where('mac_address', $macAddress)
-            ->whereHas('customer', fn ($query) => $query->where('location_id', $location->id))
+            ->whereHas('customer', fn($query) => $query->where('location_id', $location->id))
             ->exists();
 
         if ($alreadyRegistered) {
@@ -302,7 +322,7 @@ class CustomerPortalController extends Controller
     private function uniquePaymentReference(): string
     {
         do {
-            $reference = 'OY-'.Str::upper(Str::random(16));
+            $reference = 'OY-' . Str::upper(Str::random(16));
         } while (Payment::where('paystack_reference', $reference)->exists());
 
         return $reference;

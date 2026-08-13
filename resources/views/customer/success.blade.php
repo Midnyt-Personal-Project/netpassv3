@@ -27,11 +27,22 @@
                 </div>
             </div>
 
-            <!-- Copy Button -->
-            <button onclick="copyVoucher('{{ $customer->voucher_code ?? $customer->username }}')" class="mt-4 bg-slate-800 hover:bg-slate-750 text-white font-bold py-2.5 px-4 rounded-xl text-xs transition duration-200 flex items-center justify-center space-x-1.5 w-full border border-slate-700">
-                <i class="fa-solid fa-copy"></i>
-                <span>Copy Voucher</span>
-            </button>
+            <!-- Countdown & Redirect -->
+            <div class="mt-4 text-center">
+                <p class="text-xs text-slate-400">
+                    Redirecting to login page in <span id="countdown" class="text-indigo-400 font-bold">15</span> seconds...
+                </p>
+            </div>
+
+            <!-- Action Buttons -->
+            <div class="flex flex-col gap-2 mt-4">
+                <!-- Copy Voucher -->
+                <button onclick="copyVoucher('{{ $customer->voucher_code ?? $customer->username }}')" 
+                        class="bg-slate-800 hover:bg-slate-750 text-white font-bold py-2.5 px-4 rounded-xl text-xs transition duration-200 flex items-center justify-center space-x-1.5 w-full border border-slate-700">
+                    <i class="fa-solid fa-copy"></i>
+                    <span>Copy Voucher</span>
+                </button>
+            </div>
         </div>
 
         <!-- How to connect section -->
@@ -67,7 +78,10 @@
                 <h3 class="font-bold text-white text-sm">Managing Smart TVs</h3>
                 <p class="text-xs text-slate-400 mt-1">If you registered your TV's MAC address, the internet is already active for it! Connect the TV to the WiFi and enjoy streaming immediately.</p>
             </div>
-            <div class="flex flex-col items-center gap-3"><a href="{{ route('customer.subscription-status', $location->slug) }}" class="inline-block text-indigo-300 hover:text-indigo-200 text-xs font-bold underline">Check remaining subscription time</a><a href="{{ route('customer.portal', $location->slug) }}" class="inline-block text-indigo-400 hover:text-indigo-300 text-xs font-bold underline">Go to Portal Dashboard to Add more TVs</a></div>
+            <div class="flex flex-col items-center gap-3">
+                <a href="{{ route('customer.subscription-status', $location->slug) }}" class="inline-block text-indigo-300 hover:text-indigo-200 text-xs font-bold underline">Check remaining subscription time</a>
+                <a href="{{ route('customer.portal', $location->slug) }}" class="inline-block text-indigo-400 hover:text-indigo-300 text-xs font-bold underline">Go to Portal Dashboard to Add more TVs</a>
+            </div>
         </div>
     </div>
 @endsection
@@ -81,5 +95,23 @@
                 console.error("Could not copy:", err);
             });
         }
+
+        // Auto-redirect after 15 seconds with countdown
+        (function() {
+            var seconds = 15;
+            var countdownEl = document.getElementById('countdown');
+            var redirectUrl = "http://login.mikrotik/login?voucher={{ $customer->voucher_code ?? $customer->username }}";
+
+            var interval = setInterval(function() {
+                seconds--;
+                if (countdownEl) {
+                    countdownEl.textContent = seconds;
+                }
+                if (seconds <= 0) {
+                    clearInterval(interval);
+                    window.location.href = redirectUrl;
+                }
+            }, 1000);
+        })();
     </script>
 @endsection

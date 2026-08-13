@@ -211,7 +211,8 @@
                 <p class="text-xs text-slate-400 mt-1">Provide your details to complete your secure split payment via Paystack.</p>
             </div>
 
-            <form action="{{ route('customer.checkout', $location->slug) }}" method="POST" class="space-y-4">
+            {{-- ★ ADDED onsubmit HANDLER FOR LOADING STATE --}}
+            <form action="{{ route('customer.checkout', $location->slug) }}" method="POST" class="space-y-4" onsubmit="return handleFormSubmit(this)">
                 @csrf
                 <input type="hidden" name="package_id" id="modal-package-id">
 
@@ -257,6 +258,7 @@
                     </div>
                 </div>
 
+                {{-- ★ BUTTON – no type needed (defaults to submit) – will be handled by onsubmit --}}
                 <button class="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-extrabold py-3 px-4 rounded-xl text-xs tracking-wider transition shadow-lg flex items-center justify-center space-x-2">
                     <i class="fa-solid fa-lock text-[10px]"></i>
                     <span>PROCEED TO SECURE PAYMENT</span>
@@ -292,6 +294,25 @@
                 macIn.required = false;
                 devIn.required = false;
             }
+        }
+
+        /**
+         * ★ NEW: Handle form submission – show loading state on the button
+         */
+        function handleFormSubmit(form) {
+            const btn = form.querySelector('button[type="submit"]') || form.querySelector('button:last-of-type');
+            // Prevent double submission
+            if (btn.disabled) return false;
+
+            // Disable button and show spinner + new text
+            btn.disabled = true;
+            btn.classList.add('opacity-70', 'cursor-not-allowed');
+            btn.innerHTML = `
+                <i class="fa-solid fa-spinner fa-spin text-[10px]"></i>
+                <span>PROCESSING PAYMENT...</span>
+            `;
+
+            return true; // allow the form to submit
         }
     </script>
 @endsection
