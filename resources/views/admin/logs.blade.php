@@ -19,6 +19,23 @@
             <span class="text-xs text-slate-500">Latest {{ $smsLogs->perPage() }} of {{ $smsLogs->total() }}</span>
         </div>
 
+        {{-- Live SMS configuration status --}}
+        <div class="mb-4 rounded-xl border border-slate-800 bg-slate-800/40 p-3 flex flex-wrap items-center gap-x-6 gap-y-2 text-xs">
+            @if($smsConfig['api_key_configured'])
+                <span class="flex items-center gap-2">
+                    <i class="fa-solid fa-circle-check text-emerald-400"></i>
+                    <span class="text-slate-300">API key: <span class="text-emerald-400 font-bold">loaded from .env</span></span>
+                </span>
+            @else
+                <span class="flex items-center gap-2">
+                    <i class="fa-solid fa-circle-xmark text-rose-400"></i>
+                    <span class="text-rose-300">API key: <strong>missing</strong> — add <code class="rounded bg-slate-950/40 px-1">ARKESEL_SMS_API_KEY=your-key</code> to the server .env</span>
+                </span>
+            @endif
+            <span class="text-slate-300">Sender ID: <span class="text-indigo-300 font-bold">{{ $smsConfig['sender_id'] }}</span> <span class="text-slate-500">(must be an approved sender, max 11 characters)</span></span>
+            <span class="text-slate-300">Numbers: <span class="text-indigo-300 font-bold">0244... local first</span> <span class="text-slate-500">with automatic 233 fallback</span></span>
+        </div>
+
         {{-- Summary chips --}}
         <div class="mb-4 grid grid-cols-2 lg:grid-cols-4 gap-3">
             <div class="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-3">

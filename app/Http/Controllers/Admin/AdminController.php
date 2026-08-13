@@ -578,6 +578,14 @@ class AdminController extends Controller
 
         $smsLogs = $smsQuery->latest()->paginate(15);
 
+        // Live view of what the SMS service is actually configured with, so
+        // the owner can confirm their .env values are being picked up.
+        $smsConfig = [
+            'api_key_configured' => !blank(config('services.arkesel.api_key')),
+            'sender_id' => (string) config('services.arkesel.sender_id', 'OyaloWiFi'),
+            'local_format' => (bool) config('services.arkesel.local_format', true),
+        ];
+
         $emailLogs = EmailLog::with(['customer', 'location'])
             ->whereIn('location_id', $locationIds)
             ->latest()
@@ -587,7 +595,7 @@ class AdminController extends Controller
             ? ActivityLog::with('user')->latest()->paginate(15)
             : ActivityLog::with('user')->where('user_id', Auth::id())->latest()->paginate(15);
 
-        return view('admin.logs', compact('smsLogs', 'smsStats', 'emailLogs', 'activityLogs'));
+        return view('admin.logs', compact('smsLogs', 'smsStats', 'smsConfig', 'emailLogs', 'activityLogs'));
     }
 
     /**
