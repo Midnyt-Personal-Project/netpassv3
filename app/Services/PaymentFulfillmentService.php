@@ -32,7 +32,10 @@ class PaymentFulfillmentService
                 return [$lockedPayment, $lockedPayment->customer, false];
             }
 
-            $phone = $lockedPayment->purchaser_phone ?: PhoneNumber::normalize($fallbackPhone);
+            // Standardize on the local format (0542...) like every other path.
+            $phone = PhoneNumber::normalize($lockedPayment->purchaser_phone)
+                ?: PhoneNumber::normalize($fallbackPhone);
+
             if (!$phone) {
                 throw new RuntimeException('The payment has no valid purchaser phone number.');
             }

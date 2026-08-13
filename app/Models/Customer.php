@@ -51,6 +51,11 @@ class Customer extends Model
         return $this->hasMany(SmsLog::class);
     }
 
+    public function latestSmsLog()
+    {
+        return $this->hasOne(SmsLog::class)->latestOfMany();
+    }
+
     public function isExpired(): bool
     {
         return !$this->expires_at || $this->expires_at->isPast();

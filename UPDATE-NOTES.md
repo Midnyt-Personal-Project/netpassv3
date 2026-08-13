@@ -64,6 +64,51 @@
 
 ---
 
+# Update Notes — Local phone format (0542...) + visible SMS status (2026-08-13)
+
+**Phone numbers are now stored and displayed everywhere in local format**
+(0542069352), never 233542069352.
+
+## What changed
+
+### 1. Local format everywhere
+- `PhoneNumber::normalize()` now returns the local `0XXXXXXXXX` form; added
+  `international()` and `variants()` helpers.
+- Manual subscription creation (Admin > Subscriptions) accepts both spellings
+  on input but stores/validates local format.
+- Online purchases already stored local format — `PaymentFulfillmentService`
+  now normalizes any legacy/international numbers to local as well.
+- Announcement single-recipient lookup matches both local and legacy 233 rows.
+- New migration `2026_08_13_000005_normalize_phones_to_local_format` converts
+  every existing `customers.phone_number` and `payments.purchaser_phone` from
+  `233XXXXXXXXX` to `0XXXXXXXXX`.
+
+### 2. Subscription SMS outcome is now visible
+- Creating a subscription shows the SMS result right in the confirmation
+  message: "SMS sent to 0542069352" or a warning "The voucher SMS could not
+  be sent — check Admin > Logs for the reason".
+- The subscriptions table shows a ✓ SMS sent / ✗ SMS failed badge next to
+  each customer's phone number (latest attempt, with the error on hover).
+- The layout now supports amber warning flashes.
+
+## Deploy steps
+1. Upload the changed files.
+2. `php artisan migrate` — REQUIRED (converts old 233 numbers to local format).
+3. `php artisan optimize:clear`
+
+## File list
+| File | What changed |
+|---|---|
+| `app/Support/PhoneNumber.php` | Normalizes to local format; added `international()` + `variants()` |
+| `app/Http/Controllers/Admin/AdminController.php` | Local-format validation in `createSubscription`; SMS result in flash + activity log; recipient lookup matches both formats |
+| `app/Services/PaymentFulfillmentService.php` | Normalizes purchaser/fallback phones to local format |
+| `app/Models/Customer.php` | Added `latestSmsLog()` relation |
+| `resources/views/admin/subscriptions.blade.php` | SMS sent/failed badge per customer |
+| `resources/views/layouts/app.blade.php` | Amber warning flash support |
+| `database/migrations/2026_08_13_000005_normalize_phones_to_local_format.php` | NEW — converts existing 233 numbers to local format |
+
+---
+
 # Update Notes — No duplicate announcement SMS per phone (2026-08-13)
 
 **Fix:** each purchase creates its own customer/voucher row, so the same phone

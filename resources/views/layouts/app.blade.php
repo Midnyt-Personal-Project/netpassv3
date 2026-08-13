@@ -32,6 +32,7 @@
     </header>
     <main class="p-4 sm:p-6 lg:p-8 flex-grow max-w-[1700px] w-full mx-auto">
         @if(session('success'))<div class="mb-5 bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 p-4 rounded-xl text-sm"><i class="fa-solid fa-circle-check mr-2"></i>{{ session('success') }}</div>@endif
+        @if(session('warning'))<div class="mb-5 bg-amber-500/10 border border-amber-500/20 text-amber-300 p-4 rounded-xl text-sm"><i class="fa-solid fa-triangle-exclamation mr-2"></i>{{ session('warning') }}</div>@endif
         @if($errors->any())<div class="mb-5 bg-rose-500/10 border border-rose-500/20 text-rose-200 p-4 rounded-xl text-sm">@foreach($errors->all() as $error)<p>{{ $error }}</p>@endforeach</div>@endif
         @yield('content')
     </main>
