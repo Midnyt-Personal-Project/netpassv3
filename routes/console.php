@@ -12,3 +12,4 @@ Artisan::command('inspire', function () {
 // idempotent and use conditional updates to remain safe across overlapping hosts.
 Schedule::command('subscriptions:expire')->everyMinute()->withoutOverlapping();
 Schedule::command('routers:mark-offline')->everyMinute()->withoutOverlapping();
+Schedule::command('announcements:send-due')->everyMinute()->withoutOverlapping();

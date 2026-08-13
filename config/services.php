@@ -37,6 +37,9 @@ return [
     'arkesel' => [
         'api_key' => env('ARKESEL_SMS_API_KEY'),
         'sender_id' => env('ARKESEL_SMS_SENDER_ID', 'OyaloWiFi'),
+        // When true, 233XXXXXXXXX numbers are converted to 0XXXXXXXXX before
+        // sending. The 233 prefix caused slow or failed deliveries.
+        'local_format' => (bool) env('ARKESEL_SMS_LOCAL_FORMAT', true),
     ],
 
     'router' => [

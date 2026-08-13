@@ -5,7 +5,6 @@ namespace App\Services;
 use Illuminate\Support\Facades\{Http, Log};
 
 use App\Models\{Customer, SmsLog};
-use App\Support\PhoneNumber;
 
 class SmsService
 {
@@ -73,6 +72,20 @@ class SmsService
 
     protected function formatPhoneNumber(string $phone): string
     {
-        return PhoneNumber::normalize($phone) ?? preg_replace('/\s+/', '', $phone) ?? $phone;
+        // Digits only, then decide how to hand it to the gateway.
+        $digits = preg_replace('/\D+/', '', trim($phone));
+
+        if (is_string($digits) && $digits !== '') {
+            // Arkesel delivers far more reliably with local Ghana numbers.
+            // The "233" country prefix was slowing delivery down (or failing),
+            // so we convert 233XXXXXXXXX back to 0XXXXXXXXX for the gateway.
+            if (config('services.arkesel.local_format', true) && preg_match('/^233[0-9]{9}$/', $digits)) {
+                return '0'.substr($digits, 3);
+            }
+
+            return $digits;
+        }
+
+        return preg_replace('/\s+/', '', $phone) ?? $phone;
     }
 }

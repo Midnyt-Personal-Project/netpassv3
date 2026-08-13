@@ -72,8 +72,9 @@
                     </div>
                 </div>
 
-                <button type="submit" class="w-full flex justify-center py-3 px-4 border border-transparent rounded-xl shadow-lg text-xs font-bold tracking-wider uppercase text-white bg-indigo-600 hover:bg-indigo-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition">
-                    Sign In
+                <button type="submit" id="login-button" class="w-full flex justify-center items-center py-3 px-4 border border-transparent rounded-xl shadow-lg text-xs font-bold tracking-wider uppercase text-white bg-indigo-600 hover:bg-indigo-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition disabled:opacity-60 disabled:cursor-not-allowed">
+                    <i id="login-spinner" class="fa-solid fa-circle-notch fa-spin mr-2 hidden"></i>
+                    <span id="login-button-text">Sign In</span>
                 </button>
             </form>
 
@@ -88,6 +89,25 @@
             document.getElementById('password').value = pass;
             document.getElementById('login-form').submit();
         }
+
+        // Show a loading state on the Sign In button so users don't tap twice
+        // while the credentials are being checked.
+        (function () {
+            var form = document.getElementById('login-form');
+            if (!form) return;
+
+            form.addEventListener('submit', function () {
+                var button = document.getElementById('login-button');
+                var spinner = document.getElementById('login-spinner');
+                var text = document.getElementById('login-button-text');
+
+                if (!button || button.disabled) return;
+
+                button.disabled = true;
+                if (spinner) spinner.classList.remove('hidden');
+                if (text) text.textContent = 'Signing in...';
+            });
+        })();
     </script>
 </body>
 </html>

@@ -75,10 +75,26 @@
                             <th class="pb-3">Speed limits</th>
                             <th class="pb-3">Data Cap</th>
                             <th class="pb-3">Shared Users</th>
+                            <th class="pb-3">Actions</th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-slate-800/50 text-sm">
                         @forelse($packages as $pkg)
+                            @php
+                                if ($pkg->duration_minutes % 43200 === 0) {
+                                    $editValue = $pkg->duration_minutes / 43200;
+                                    $editUnit = 'months';
+                                } elseif ($pkg->duration_minutes % 1440 === 0) {
+                                    $editValue = $pkg->duration_minutes / 1440;
+                                    $editUnit = 'days';
+                                } elseif ($pkg->duration_minutes % 60 === 0) {
+                                    $editValue = $pkg->duration_minutes / 60;
+                                    $editUnit = 'hours';
+                                } else {
+                                    $editValue = $pkg->duration_minutes;
+                                    $editUnit = 'minutes';
+                                }
+                            @endphp
                             <tr>
                                 <td class="py-3 text-white font-bold">{{ $pkg->name }}</td>
                                 <td class="py-3 text-slate-300">{{ $pkg->location->name }}</td>
@@ -99,16 +115,82 @@
                                     {{ $pkg->data_limit_mb ? number_format($pkg->data_limit_mb) . ' MB' : 'Unlimited Data' }}
                                 </td>
                                 <td class="py-3 text-slate-300">{{ $pkg->share_users ?? 1 }}</td>
+                                <td class="py-3">
+                                    <button onclick="toggleEditForm({{ $pkg->id }})" class="rounded-lg border border-indigo-500/40 px-3 py-1.5 text-xs text-indigo-300 hover:bg-indigo-500/10 font-semibold">
+                                        <i class="fa-solid fa-pen mr-1"></i>Edit
+                                    </button>
+                                </td>
+                            </tr>
+                            <tr id="edit-row-{{ $pkg->id }}" class="hidden">
+                                <td colspan="8" class="py-3">
+                                    <form action="{{ route('admin.packages.update', $pkg) }}" method="POST" class="bg-slate-950/60 border border-indigo-500/30 rounded-xl p-4 space-y-3">
+                                        @csrf
+                                        @method('PUT')
+                                        <p class="text-xs font-bold text-indigo-300 uppercase tracking-wide"><i class="fa-solid fa-pen-to-square mr-1"></i>Edit "{{ $pkg->name }}" ({{ $pkg->location->name }})</p>
+                                        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                                            <div>
+                                                <label class="block text-xs text-slate-400 mb-1">Package Name</label>
+                                                <input type="text" name="name" value="{{ old('name', $pkg->name) }}" required maxlength="100" class="w-full bg-slate-800 border border-slate-700 rounded-lg p-2.5 text-white text-sm">
+                                            </div>
+                                            <div>
+                                                <label class="block text-xs text-slate-400 mb-1">Price (GHS)</label>
+                                                <input type="number" step="0.01" name="price" value="{{ old('price', $pkg->price) }}" required min="0" class="w-full bg-slate-800 border border-slate-700 rounded-lg p-2.5 text-white text-sm">
+                                            </div>
+                                            <div>
+                                                <label class="block text-xs text-slate-400 mb-1">Access duration</label>
+                                                <div class="grid grid-cols-2 gap-2">
+                                                    <input type="number" name="duration_value" value="{{ old('duration_value', $editValue) }}" min="1" max="999" required class="w-full bg-slate-800 border border-slate-700 rounded-lg p-2.5 text-white text-sm">
+                                                    <select name="duration_unit" required class="w-full bg-slate-800 border border-slate-700 rounded-lg p-2.5 text-white text-sm">
+                                                        <option value="minutes" @selected($editUnit === 'minutes')>Minutes</option>
+                                                        <option value="hours" @selected($editUnit === 'hours')>Hours</option>
+                                                        <option value="days" @selected($editUnit === 'days')>Days</option>
+                                                        <option value="months" @selected($editUnit === 'months')>Months</option>
+                                                    </select>
+                                                </div>
+                                            </div>
+                                            <div>
+                                                <label class="block text-xs text-slate-400 mb-1">Upload Speed <span class="text-slate-600">(optional)</span></label>
+                                                <input type="text" name="speed_limit_up" value="{{ old('speed_limit_up', $pkg->speed_limit_up) }}" maxlength="30" class="w-full bg-slate-800 border border-slate-700 rounded-lg p-2.5 text-white text-sm">
+                                            </div>
+                                            <div>
+                                                <label class="block text-xs text-slate-400 mb-1">Download Speed <span class="text-slate-600">(optional)</span></label>
+                                                <input type="text" name="speed_limit_down" value="{{ old('speed_limit_down', $pkg->speed_limit_down) }}" maxlength="30" class="w-full bg-slate-800 border border-slate-700 rounded-lg p-2.5 text-white text-sm">
+                                            </div>
+                                            <div>
+                                                <label class="block text-xs text-slate-400 mb-1">Data Cap (MB, optional)</label>
+                                                <input type="number" name="data_limit_mb" value="{{ old('data_limit_mb', $pkg->data_limit_mb) }}" min="1" placeholder="Empty = Unlimited" class="w-full bg-slate-800 border border-slate-700 rounded-lg p-2.5 text-white text-sm">
+                                            </div>
+                                            <div>
+                                                <label class="block text-xs text-slate-400 mb-1">Shared Users</label>
+                                                <input type="number" name="share_users" value="{{ old('share_users', $pkg->share_users ?? 1) }}" min="1" max="100" class="w-full bg-slate-800 border border-slate-700 rounded-lg p-2.5 text-white text-sm">
+                                            </div>
+                                        </div>
+                                        <div class="flex gap-2">
+                                            <button class="rounded-lg bg-indigo-600 hover:bg-indigo-500 px-4 py-2 text-xs text-white font-bold">Save Changes</button>
+                                            <button type="button" onclick="toggleEditForm({{ $pkg->id }})" class="rounded-lg border border-slate-700 px-4 py-2 text-xs text-slate-300 hover:bg-slate-700 font-semibold">Cancel</button>
+                                        </div>
+                                        <p class="text-[10px] text-slate-500"><i class="fa-solid fa-circle-info mr-1"></i>Saving re-syncs the plan profile to every router at this location. The location cannot be changed from here.</p>
+                                    </form>
+                                </td>
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="6" class="py-6 text-center text-slate-500 text-sm">No internet plans defined. Add your first plan on the left!</td>
+                                <td colspan="8" class="py-6 text-center text-slate-500 text-sm">No internet plans defined. Add your first plan on the left!</td>
                             </tr>
                         @endforelse
                     </tbody>
                 </table>
             </div>
+            <div class="mt-4">{{ $packages->links() }}</div>
         </div>
     </div>
 @endsection
-<form method="GET" class="mb-2"><input name="q" placeholder="Search..." value="{{ request("q") }}" class="bg-slate-800 border border-slate-700 rounded p-2 text-white"></form>
+
+@section('scripts')
+<script>
+    function toggleEditForm(id) {
+        var row = document.getElementById('edit-row-' + id);
+        if (row) row.classList.toggle('hidden');
+    }
+</script>
+@endsection
