@@ -3,14 +3,14 @@
 namespace App\Http\Controllers\Admin;
 
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\{Auth, DB, Hash};
+use Illuminate\Support\Facades\{Auth, DB, Hash, Log};
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 
 use App\Http\Controllers\Controller;
 use App\Jobs\SendOwnerSubscriptionEmail;
 use App\Models\{ActivityLog, Announcement, Customer, Device, EmailLog, Location, Package, Payment, RouterCommand, SmsLog};
-use App\Services\{ActivityLogger, MikroTikService, OwnerNotificationService, SmsService, SubscriptionIssuer};
+use App\Services\{ActivityLogger, AnnouncementSmsSender, MikroTikService, OwnerNotificationService, SmsService, SubscriptionIssuer};
 use App\Support\PhoneNumber;
 
 
@@ -381,14 +381,18 @@ class AdminController extends Controller
             'is_active' => true,
         ]);
 
-        // "Send now" blasts are picked up by the every-minute scheduler
-        // (announcements:send-due). This works even without a queue worker.
+        // "Send now" announcements go out immediately, during this request —
+        // no queue, no waiting for the scheduler. (Scheduled announcements are
+        // still triggered by the every-minute cron at their chosen time.)
+        $inlineResult = null;
+        if ($sendSms && !$scheduledAt) {
+            $inlineResult = $this->sendAnnouncementSmsInline($announcement);
+        }
+
         $detail = $sendSms
             ? ($scheduledAt
                 ? 'SMS blast scheduled for '.$announcement->scheduled_at->format('M j, Y g:i A').'.'
-                : ($customer
-                    ? "SMS is being sent to {$customer->phone_number} (within a minute)."
-                    : 'SMS blast to all customers is being sent (within a minute).'))
+                : $this->describeInlineResult($inlineResult, $customer))
             : '';
 
         app(ActivityLogger::class)->record(
@@ -397,6 +401,56 @@ class AdminController extends Controller
         );
 
         return back()->with('success', 'Announcement published. '.$detail);
+    }
+
+    /**
+     * Send a "send now" announcement SMS blast synchronously, right inside
+     * this request. A configurable cap keeps huge blasts from timing out;
+     * anything beyond the cap is finished by the every-minute scheduler.
+     *
+     * @return array{sent: int, failed: int, finished: bool}|null
+     */
+    protected function sendAnnouncementSmsInline(Announcement $announcement): ?array
+    {
+        $limit = max(1, (int) config('services.arkesel.inline_blast_limit', 1000));
+
+        try {
+            return app(AnnouncementSmsSender::class)->sendChunk($announcement, $limit);
+        } catch (\Throwable $exception) {
+            Log::error('[SMS] Inline announcement blast failed and will be retried by the scheduler. '.$exception->getMessage(), [
+                'announcement_id' => $announcement->id,
+            ]);
+
+            return ['sent' => 0, 'failed' => 0, 'finished' => false];
+        }
+    }
+
+    /**
+     * @param array{sent: int, failed: int, finished: bool}|null $result
+     */
+    protected function describeInlineResult(?array $result, ?Customer $customer): string
+    {
+        if ($customer) {
+            return ($result && $result['sent'] > 0)
+                ? "SMS sent to {$customer->phone_number}."
+                : 'SMS will be sent to '.$customer->phone_number.' within a minute.';
+        }
+
+        if (!$result) {
+            return 'SMS blast to all customers is being sent.';
+        }
+
+        $summary = "SMS sent to {$result['sent']} customer(s)";
+
+        if ($result['failed'] > 0) {
+            $summary .= ", {$result['failed']} failed (see Admin > Logs)";
+        }
+
+        if (!$result['finished']) {
+            $summary .= ' — the remaining recipients go out automatically within the next few minutes.';
+        }
+
+        return $summary.'.';
     }
 
     /**

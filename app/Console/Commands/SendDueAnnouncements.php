@@ -22,7 +22,14 @@ class SendDueAnnouncements extends Command
         $totalFailed = 0;
 
         foreach ($due as $announcement) {
-            $result = $sender->sendChunk($announcement, $limit);
+            try {
+                $result = $sender->sendChunk($announcement, $limit);
+            } catch (\Throwable $exception) {
+                // Never let a single broken blast (e.g. pending migration)
+                // take down the whole scheduler run.
+                $this->error("Announcement #{$announcement->id} skipped: {$exception->getMessage()}");
+                continue;
+            }
 
             $totalSent += $result['sent'];
             $totalFailed += $result['failed'];

@@ -64,6 +64,57 @@
 
 ---
 
+# Update Notes — No queue for SMS + inline "send now" blasts (2026-08-13)
+
+**Every SMS now goes out directly and immediately — none of them use the queue anymore.**
+
+## What changed
+
+### 1. "Send now" announcements send instantly, inside the request
+- When you publish an announcement with "Send as SMS → Send now", the SMS go
+  out **during that same request** (single customer or everyone) — exactly as
+  fast as calling the Arkesel URL in a browser.
+- A safety cap (`ARKESEL_SMS_INLINE_BLAST_LIMIT`, default 1000) keeps very
+  large blasts from timing out. Anything beyond the cap is finished
+  automatically by the every-minute scheduler within a few minutes, and the
+  page tells you exactly how many went out immediately.
+- Future-dated ("Schedule for later") announcements still go out at their
+  chosen time via the every-minute scheduler command.
+
+### 2. Voucher + expiry SMS (already direct, now crash-proof)
+- Manual WiFi buying, online purchases, and expiry alerts all send their SMS
+  synchronously. **Nothing in the SMS flow touches the queue.**
+- The legacy queue jobs (`SendSubscriptionCredentialsSms`, `SendExpiryNotificationSms`,
+  `SendAnnouncementSms`) are no longer dispatched anywhere. The files are kept
+  only so any very old queued rows can still resolve.
+
+### 3. Log writes can never break a purchase again
+- If the `sms_logs` table is behind on migrations (or any other write error
+  happens), the SMS still goes out and the problem is written to
+  `storage/logs/laravel.log` instead of crashing the page.
+- **If you see "table sms_logs has no column named ..." in the log, just run
+  `php artisan migrate`** — that error meant the SMS had already been sent
+  successfully, only the log row failed to save.
+
+## Deploy steps
+1. Upload the changed files.
+2. Run: `php artisan migrate`  ← REQUIRED (adds the sms_logs columns).
+3. `php artisan optimize:clear`
+4. Keep the every-minute scheduler cron for future-dated announcements:
+   `* * * * * php /path/to/your/app/artisan schedule:run >> /dev/null 2>&1`
+
+## File list for this update
+| File | What changed |
+|---|---|
+| `app/Services/SmsService.php` | `storeLog()` helper: SMS log writes are now non-fatal (never crash the caller) |
+| `app/Http/Controllers/Admin/AdminController.php` | "Send now" announcements send inline during the request via `sendAnnouncementSmsInline()` + a clear result message |
+| `config/services.php` | Added `arkesel.inline_blast_limit` |
+| `.env.example` | Added `ARKESEL_SMS_INLINE_BLAST_LIMIT` + updated cron comments |
+| `app/Console/Commands/SendDueAnnouncements.php` | Scheduler run can no longer be taken down by one broken blast |
+| `UPDATE-NOTES.md` | This document |
+
+---
+
 # Update Notes — SMS logging & diagnostics (2026-08-13)
 
 Applied on top of the SMS reliability fix. This makes every SMS attempt fully

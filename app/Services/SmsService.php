@@ -71,7 +71,7 @@ class SmsService
             if ($ok) {
                 $durationMs = (int) round((microtime(true) - $startedAt) * 1000);
 
-                SmsLog::create([
+                $this->storeLog([
                     'customer_id' => $customer?->id,
                     'announcement_id' => $announcementId,
                     'phone_number' => $formatted,
@@ -187,7 +187,7 @@ class SmsService
             'gateway' => $rawResponse,
         ]);
 
-        SmsLog::create([
+        $this->storeLog([
             'customer_id' => $customer?->id,
             'announcement_id' => $announcementId,
             'phone_number' => $phoneNumber,
@@ -200,6 +200,21 @@ class SmsService
         ]);
 
         return false;
+    }
+
+    /**
+     * Save an SMS log row without ever breaking the caller: if the sms_logs
+     * schema is behind (migrations not run yet) or the write fails for any
+     * reason, the delivery flow continues and the problem is recorded in the
+     * application log instead.
+     */
+    private function storeLog(array $data): void
+    {
+        try {
+            SmsLog::create($data);
+        } catch (\Throwable $exception) {
+            Log::error('[SMS] SMS log row could not be saved (run "php artisan migrate" if this says missing column). '.$exception->getMessage(), $data);
+        }
     }
 
     public function sendCredentials(Customer $customer, string $packageName): bool
