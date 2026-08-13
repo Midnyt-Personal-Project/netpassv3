@@ -12,4 +12,6 @@ Artisan::command('inspire', function () {
 // idempotent and use conditional updates to remain safe across overlapping hosts.
 Schedule::command('subscriptions:expire')->everyMinute()->withoutOverlapping();
 Schedule::command('routers:mark-offline')->everyMinute()->withoutOverlapping();
-Schedule::command('announcements:send-due')->everyMinute()->withoutOverlapping();
+// Announcement SMS blasts are sent straight from the scheduler (no queue
+// worker needed). Big blasts are spread over several runs by the --limit.
+Schedule::command('announcements:send-due', ['--limit' => 100])->everyMinute()->withoutOverlapping();

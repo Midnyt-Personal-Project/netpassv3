@@ -133,6 +133,8 @@
                             <span class="rounded-full bg-emerald-500/10 px-2 py-1 text-emerald-400"><i class="fa-solid fa-circle-check mr-1"></i>SMS sent {{ $announcement->sent_at->format('M j, Y g:i A') }}</span>
                         @elseif($announcement->isSmsScheduled())
                             <span class="rounded-full bg-amber-500/10 px-2 py-1 text-amber-300"><i class="fa-solid fa-clock mr-1"></i>SMS scheduled {{ $announcement->scheduled_at->format('M j, Y g:i A') }}</span>
+                        @elseif($announcement->send_sms && $announcement->is_active)
+                            <span class="rounded-full bg-indigo-500/10 px-2 py-1 text-indigo-300"><i class="fa-solid fa-paper-plane mr-1"></i>Sending SMS...</span>
                         @elseif($announcement->isPaused())
                             <span class="rounded-full bg-rose-500/10 px-2 py-1 text-rose-300"><i class="fa-solid fa-pause mr-1"></i>Paused</span>
                         @elseif($isLive)

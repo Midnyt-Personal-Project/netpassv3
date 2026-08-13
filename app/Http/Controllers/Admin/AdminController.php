@@ -8,7 +8,7 @@ use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 
 use App\Http\Controllers\Controller;
-use App\Jobs\{SendAnnouncementSms, SendOwnerSubscriptionEmail, SendSubscriptionCredentialsSms};
+use App\Jobs\SendOwnerSubscriptionEmail;
 use App\Models\{ActivityLog, Announcement, Customer, Device, EmailLog, Location, Package, Payment, RouterCommand, SmsLog};
 use App\Services\{ActivityLogger, MikroTikService, OwnerNotificationService, SmsService, SubscriptionIssuer};
 use App\Support\PhoneNumber;
@@ -381,16 +381,14 @@ class AdminController extends Controller
             'is_active' => true,
         ]);
 
-        if ($sendSms && !$scheduledAt) {
-            SendAnnouncementSms::dispatch($announcement->id);
-        }
-
+        // "Send now" blasts are picked up by the every-minute scheduler
+        // (announcements:send-due). This works even without a queue worker.
         $detail = $sendSms
             ? ($scheduledAt
                 ? 'SMS blast scheduled for '.$announcement->scheduled_at->format('M j, Y g:i A').'.'
                 : ($customer
-                    ? "SMS is being sent to {$customer->phone_number}."
-                    : 'SMS blast to all customers is being sent.'))
+                    ? "SMS is being sent to {$customer->phone_number} (within a minute)."
+                    : 'SMS blast to all customers is being sent (within a minute).'))
             : '';
 
         app(ActivityLogger::class)->record(
@@ -479,28 +477,54 @@ class AdminController extends Controller
     }
 
     /**
-     * Show logs (SMS, email, activity) with pagination.
+     * Show logs (SMS, email, activity) with pagination, summary stats and
+     * filters so SMS delivery can be diagnosed at a glance.
      */
-    public function showLogs()
+    public function showLogs(Request $request)
     {
         $locations = $this->getAdminLocations();
         $locationIds = $locations->pluck('id');
+        $isSuper = Auth::user()->isSuperAdmin();
 
-        $smsLogs = SmsLog::with('customer.location')
-            ->whereHas('customer', fn ($query) => $query->whereIn('location_id', $locationIds))
-            ->latest()
-            ->paginate(15);
+        $smsBase = SmsLog::with(['customer.location', 'announcement'])
+            ->when(!$isSuper, fn ($query) => $query->whereHas('customer', fn ($query) => $query->whereIn('location_id', $locationIds)));
+
+        // Summary: today + last 7 days, within the caller's scope.
+        $smsStats = [
+            'today_sent' => (clone $smsBase)->whereDate('created_at', today())->where('status', 'sent')->count(),
+            'today_failed' => (clone $smsBase)->whereDate('created_at', today())->where('status', 'failed')->count(),
+            'week_sent' => (clone $smsBase)->where('created_at', '>=', now()->subDays(7))->where('status', 'sent')->count(),
+            'week_failed' => (clone $smsBase)->where('created_at', '>=', now()->subDays(7))->where('status', 'failed')->count(),
+        ];
+
+        $smsQuery = clone $smsBase;
+
+        if ($request->filled('sms_status') && in_array($request->query('sms_status'), ['sent', 'failed'], true)) {
+            $smsQuery->where('status', $request->query('sms_status'));
+        }
+
+        if ($request->filled('sms_search')) {
+            $search = trim((string) $request->query('sms_search'));
+            $smsQuery->where(function ($query) use ($search) {
+                $query->where('phone_number', 'like', "%{$search}%")
+                    ->orWhere('message', 'like', "%{$search}%")
+                    ->orWhere('error_message', 'like', "%{$search}%")
+                    ->orWhere('type', 'like', "%{$search}%");
+            });
+        }
+
+        $smsLogs = $smsQuery->latest()->paginate(15);
 
         $emailLogs = EmailLog::with(['customer', 'location'])
             ->whereIn('location_id', $locationIds)
             ->latest()
             ->paginate(15);
 
-        $activityLogs = Auth::user()->isSuperAdmin()
+        $activityLogs = $isSuper
             ? ActivityLog::with('user')->latest()->paginate(15)
             : ActivityLog::with('user')->where('user_id', Auth::id())->latest()->paginate(15);
 
-        return view('admin.logs', compact('smsLogs', 'emailLogs', 'activityLogs'));
+        return view('admin.logs', compact('smsLogs', 'smsStats', 'emailLogs', 'activityLogs'));
     }
 
     /**
@@ -581,7 +605,9 @@ class AdminController extends Controller
             return [$customer, $payment];
         }, 3);
 
-        SendSubscriptionCredentialsSms::dispatch($payment->id);
+        // Voucher SMS is sent immediately (not through the queue) so it always
+        // arrives even when no queue worker is running on the server.
+        app(SmsService::class)->sendCredentials($customer, $package->name);
         SendOwnerSubscriptionEmail::dispatch($payment->id);
 
         app(ActivityLogger::class)->record(

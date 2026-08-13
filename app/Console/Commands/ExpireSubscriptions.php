@@ -2,10 +2,10 @@
 
 namespace App\Console\Commands;
 
-use App\Jobs\SendExpiryNotificationSms;
 use App\Models\Customer;
 use App\Services\ActivityLogger;
 use App\Services\MikroTikService;
+use App\Services\SmsService;
 use Illuminate\Console\Command;
 
 class ExpireSubscriptions extends Command
@@ -13,7 +13,7 @@ class ExpireSubscriptions extends Command
     protected $signature = 'subscriptions:expire {--dry-run : Report customers that would expire without changing anything}';
     protected $description = 'Expire overdue hotspot subscriptions and queue MikroTik access removal.';
 
-    public function handle(MikroTikService $mikrotik, ActivityLogger $activity): int
+    public function handle(MikroTikService $mikrotik, ActivityLogger $activity, SmsService $sms): int
     {
         $expired = 0;
         $dryRun = (bool) $this->option('dry-run');
@@ -47,7 +47,9 @@ class ExpireSubscriptions extends Command
                         }
                     }
 
-                    SendExpiryNotificationSms::dispatch($customer->id);
+                    // Sent immediately instead of via a queued job: expiry SMS
+                    // must arrive even when no queue worker is running.
+                    $sms->sendExpiryNotification($customer);
                     $activity->record('subscription.expired', "Voucher {$customer->voucher_code} expired at {$customer->location->name}; REMOVE_USER and device removal commands were queued for every router.");
                     $expired++;
                 }
