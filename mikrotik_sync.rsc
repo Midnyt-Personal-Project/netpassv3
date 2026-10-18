@@ -1,35 +1,24 @@
-# Oyalo command sync for RouterOS 7
-# Replace these three values before importing the script.
-:local baseUrl "https://wifi.oyalo.net"
-:local routerId "RTR-REPLACE-ME"
-:local routerToken "oyalo_REPLACE_ME"
+:local routerId "RTR-238605"
+:local routerToken "oyalo_26lWGsL0vqStZ2YEOQu9PKaznlhZcGCQq1tj5mKqrZBpQ4yx"
 
-:local authHeaders ("X-Router-ID: ".$routerId.",X-Router-Token: ".$routerToken)
+# Get router information
+:local identity [/system identity get name]
+:local version [/system resource get version]
+:local board [/system resource get board-name]
+:local uptime [/system resource get uptime]
 
-# Tell the API that this router is alive.
-:onerror heartbeatError in={
-    /tool fetch url=($baseUrl."/api/router/heartbeat") http-method=post \
-        http-header-field=($authHeaders.",Content-Type: application/json") \
-        http-data="{}" output=none check-certificate=yes
-} do={
-    :log warning ("Oyalo heartbeat failed: ".$heartbeatError)
-}
+# Build POST data
+:local postData ("identity=" . $identity . \
+"&version=" . $version . \
+"&board=" . $board . \
+"&uptime=" . $uptime)
 
-:local fetchResult
-:onerror fetchError in={
-    :set fetchResult [/tool fetch url=($baseUrl."/api/router/commands") http-method=get \
-        http-header-field=$authHeaders output=user as-value check-certificate=yes]
-} do={
-    :log error ("Oyalo command fetch failed: ".$fetchError)
-    :error "Oyalo sync stopped"
-}
+# Send heartbeat
+/tool fetch \
+url="https://honneycole.oyalo.net/api/router/heartbeat" \
+http-method=post \
+http-header-field=("X-Router-ID: " . $routerId . ",X-Router-Token: " . $routerToken . ",Content-Type: application/x-www-form-urlencoded") \
+http-data=$postData \
+keep-result=no
 
-:local scriptContent ($fetchResult->"data")
-:if ([:len $scriptContent] > 0) do={
-    :onerror runError in={
-        :local runScript [:parse $scriptContent]
-        $runScript
-    } do={
-        :log error ("Oyalo script execution failed: ".$runError)
-    }
-}
+:log info "Heartbeat sent."
