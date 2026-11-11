@@ -24,6 +24,12 @@ class CustomerPortalController extends Controller
     public function showPortal(string $slug, Request $request)
     {
         $location = Location::where('slug', $slug)->where('status', 'active')->firstOrFail();
+
+        // Maintenance mode: hide the shop and show "we'll be back soon" instead.
+        if ($location->maintenance_mode) {
+            return view('customer.maintenance', compact('location'));
+        }
+
         $packages = $location->packages()->orderBy('price')->get();
 
         // This encrypted cookie is issued only after a verified payment. A
@@ -103,6 +109,11 @@ class CustomerPortalController extends Controller
         ]);
 
         $location = Location::where('slug', $slug)->where('status', 'active')->firstOrFail();
+
+        if ($location->maintenance_mode) {
+            return back()->with('error', 'Purchases are currently disabled at this location. We will be back soon.');
+        }
+
         $package = Package::whereKey($data['package_id'])
             ->where('location_id', $location->id)
             ->firstOrFail();
@@ -278,6 +289,7 @@ class CustomerPortalController extends Controller
             'mac_address' => $macAddress,
             'name' => $data['device_name'],
             'status' => 'active',
+            'last_seen' => now(),
         ]);
 
         foreach ($location->routers()->get() as $router) {

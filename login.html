@@ -1,0 +1,572 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Oyalo WiFi — Hotspot Login</title>
+<style>
+:root {
+    --paper: #f3eee4;
+    --card: #fffdf8;
+    --ink: #1f1b16;
+    --muted: #6f675b;
+    --line: #ddd5c4;
+    --green: #0b6b3a;
+    --green-dark: #08522c;
+    --gold: #f2b705;
+    --red: #b3261e;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+    min-height: 100vh;
+    min-height: 100dvh;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: var(--paper);
+    color: var(--ink);
+    -webkit-text-size-adjust: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 14px;
+}
+
+.card {
+    width: 100%;
+    max-width: 430px;
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    overflow: hidden;
+}
+
+/* flat Ghana stripe */
+.stripe { display: flex; height: 5px; }
+.stripe i { flex: 1; }
+.stripe i:nth-child(1) { background: #ce1126; }
+.stripe i:nth-child(2) { background: var(--gold); }
+.stripe i:nth-child(3) { background: #006b3f; }
+
+/* ---------- HEADER ---------- */
+.head {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 16px 20px 12px;
+}
+.logo {
+    width: 40px; height: 40px;
+    flex-shrink: 0;
+    background: var(--green);
+    border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+}
+.logo svg { width: 24px; height: 24px; }
+.head h1 { font-size: 19px; font-weight: 800; line-height: 1.15; }
+.head small { display: block; font-size: 12px; color: var(--muted); font-weight: 500; margin-top: 2px; }
+
+/* ---------- TABS (underline style) ---------- */
+.tabs {
+    display: flex;
+    border-bottom: 1px solid var(--line);
+    padding: 0 20px;
+}
+.tab {
+    flex: 1;
+    padding: 12px 4px;
+    border: none;
+    border-bottom: 3px solid transparent;
+    margin-bottom: -1px;
+    background: transparent;
+    font-size: 14.5px;
+    font-weight: 700;
+    color: var(--muted);
+    cursor: pointer;
+    text-align: center;
+    text-decoration: none;
+}
+.tab.active { color: var(--green); border-bottom-color: var(--green); }
+
+.pane { display: none; }
+.pane.active { display: block; }
+
+/* ---------- LOGIN PANE ---------- */
+.login-body { padding: 18px 20px 16px; }
+
+.subtitle { font-size: 14px; color: var(--muted); margin-bottom: 14px; }
+
+.error-banner {
+    background: #fbeceb;
+    border-left: 4px solid var(--red);
+    color: #6e1712;
+    padding: 10px 12px;
+    margin-bottom: 14px;
+    font-size: 13px;
+    line-height: 1.45;
+}
+.error-banner strong { display: block; margin-bottom: 2px; }
+.error-banner a { color: #6e1712; font-weight: 700; }
+
+label {
+    display: block;
+    font-size: 13px;
+    font-weight: 700;
+    margin-bottom: 6px;
+}
+
+.input-wrapper {
+    display: flex;
+    align-items: center;
+    border: 2px solid var(--line);
+    border-radius: 10px;
+    background: #fff;
+}
+.input-wrapper:focus-within { border-color: var(--green); }
+.prefix { padding-left: 14px; font: 700 18px monospace; color: var(--muted); }
+.input-wrapper input {
+    flex: 1;
+    min-width: 0;
+    padding: 13px 14px 13px 4px;
+    border: none;
+    outline: none;
+    background: transparent;
+    font: 700 18px monospace;
+    letter-spacing: 1px;
+    color: var(--ink);
+}
+.input-wrapper input::placeholder { font-weight: 400; color: #b9b0a0; }
+
+.hint { font-size: 12px; color: var(--muted); margin: 6px 0 14px; }
+
+button.submit-btn {
+    width: 100%;
+    padding: 14px;
+    border: none;
+    border-radius: 10px;
+    background: var(--green);
+    color: #fff;
+    font-size: 16px;
+    font-weight: 700;
+    cursor: pointer;
+}
+button.submit-btn:active { background: var(--green-dark); }
+button.submit-btn:disabled { opacity: .65; cursor: not-allowed; }
+
+#countdown-timer { display: none; margin-top: 10px; font-size: 13px; color: var(--muted); }
+#countdown-timer.active { display: block; }
+
+.or-divider {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 14px 0 12px;
+    font-size: 12px;
+    color: var(--muted);
+}
+.or-divider::before, .or-divider::after { content: ""; flex: 1; height: 1px; background: var(--line); }
+
+.buy-btn {
+    display: block;
+    text-align: center;
+    padding: 13px;
+    border-radius: 10px;
+    background: var(--gold);
+    color: var(--ink);
+    font-size: 15.5px;
+    font-weight: 800;
+    text-decoration: none;
+    border: 2px solid var(--ink);
+}
+.buy-btn:active { background: #d9a304; }
+
+/* MAC address strip — always visible */
+.mac-box {
+    margin-top: 14px;
+    padding: 10px 12px;
+    background: #f3eee4;
+    border: 1px dashed #c9bfa9;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+}
+.mac-label { font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .6px; }
+.mac-value { font: 700 14px monospace; color: var(--ink); margin-top: 2px; word-break: break-all; }
+.copy-mac-btn {
+    flex-shrink: 0;
+    background: var(--ink);
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    padding: 8px 14px;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+/* help */
+details.more { margin-top: 12px; text-align: left; }
+details.more summary {
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--muted);
+    text-align: center;
+    list-style: none;
+}
+details.more summary::-webkit-details-marker { display: none; }
+.more-content { margin-top: 10px; font-size: 13px; line-height: 1.5; color: #4b443a; }
+.more-content p { margin-bottom: 8px; }
+
+.device-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 7px 0;
+    border-bottom: 1px solid #eee7d8;
+    font-size: 12.5px;
+}
+.device-row:last-child { border-bottom: none; }
+.device-label { color: var(--muted); }
+.device-value { font: 700 12.5px monospace; }
+
+.footer {
+    padding: 12px 20px 16px;
+    text-align: center;
+    font-size: 12px;
+    line-height: 1.6;
+    color: var(--muted);
+    border-top: 1px solid var(--line);
+}
+.footer strong { color: var(--ink); }
+
+@media (max-height: 700px) {
+    .head { padding: 10px 16px 8px; }
+    .logo { width: 34px; height: 34px; }
+    .login-body { padding: 12px 16px 10px; }
+    .subtitle { margin-bottom: 10px; }
+    .hint { margin-bottom: 10px; }
+    .input-wrapper input { padding: 10px 12px 10px 4px; }
+    button.submit-btn { padding: 12px; }
+    .mac-box { margin-top: 10px; padding: 8px 10px; }
+    .footer { padding: 8px 16px 10px; }
+}
+</style>
+</head>
+<body>
+
+<!-- CHAP authentication hidden form -->
+$(if chap-id)
+<form name="sendin" action="$(link-login-only)" method="post">
+    <input type="hidden" name="username">
+    <input type="hidden" name="password">
+    <input type="hidden" name="dst" value="$(link-orig)">
+    <input type="hidden" name="popup" value="true">
+</form>
+<script src="/md5.js"></script>
+<script>
+function doLogin() {
+    const prefix = "OY-";
+    const inputField = document.getElementById("voucher_code");
+    let codePart = inputField.value.trim().toUpperCase();
+    if (codePart.startsWith("OY-")) codePart = codePart.substring(3);
+    const fullCode = prefix + codePart;
+
+    document.sendin.username.value = fullCode;
+    document.sendin.password.value = hexMD5('$(chap-id)' + fullCode + '$(chap-challenge)');
+    document.sendin.submit();
+    return false;
+}
+</script>
+$(endif)
+
+<div class="card">
+    <div class="stripe"><i></i><i></i><i></i></div>
+
+    <div class="head">
+        <div class="logo">
+            <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round">
+                <path d="M2.5 9a14 14 0 0 1 19 0"/>
+                <path d="M5.5 12.5a9.5 9.5 0 0 1 13 0"/>
+                <path d="M8.7 16a5 5 0 0 1 6.6 0"/>
+                <circle cx="12" cy="19.3" r="1" fill="#fff"/>
+            </svg>
+        </div>
+        <h1>HonneyCole WiFi<small>Powered by Oyalo</small></h1>
+    </div>
+
+    <!-- TABS -->
+    <div class="tabs" role="tablist">
+        <span class="tab active" role="tab">Connect</span>
+        <a class="tab" href="https://honneycole.oyalo.net/h/honneycole-hostel" role="tab">Buy Voucher</a>
+    </div>
+
+    <!-- ========== TAB 1: CONNECT ========== -->
+    <div class="pane active" id="pane-login">
+        <div class="login-body">
+            <p class="subtitle">Enter your voucher code to get online.</p>
+
+            $(if error)
+            <div class="error-banner">
+                <strong>Couldn't connect</strong>
+                $(error)
+                <div style="margin-top:6px;font-size:12px;">
+                    Check your code (only the part after "OY-"), or <a href="https://honneycole.oyalo.net/h/honneycole-hostel">buy a new voucher</a>.
+                </div>
+            </div>
+            $(endif)
+
+            <form name="login" action="$(link-login-only)" method="post" $(if chap-id)onsubmit="return doLogin()"$(endif)>
+                <input type="hidden" name="dst" value="$(link-orig)">
+                <input type="hidden" name="popup" value="true">
+                <input type="hidden" name="username" id="username-hidden">
+                <input type="hidden" name="password" id="password-hidden">
+
+                <label for="voucher_code">Voucher code</label>
+                <div class="input-wrapper">
+                    <span class="prefix">OY‑</span>
+                    <input
+                        type="text"
+                        id="voucher_code"
+                        name="username_part"
+                        placeholder="ABC123DEF4"
+                        autocomplete="off"
+                        autocapitalize="characters"
+                        autocorrect="off"
+                        spellcheck="false"
+                        required
+                    >
+                </div>
+                <p class="hint">Type only what comes after <strong>OY‑</strong></p>
+
+                <button type="submit" class="submit-btn" id="connectBtn">Connect</button>
+                <div id="countdown-timer"></div>
+            </form>
+
+            <div class="or-divider"><span>no voucher?</span></div>
+
+            <a class="buy-btn" href="https://honneycole.oyalo.net/h/honneycole-hostel">Buy a Voucher</a>
+
+            <!-- MAC address always visible -->
+            <div class="mac-box">
+                <div>
+                    <div class="mac-label">Your MAC address</div>
+                    <div class="mac-value" id="mac-address-text">$(mac)</div>
+                </div>
+                <button type="button" class="copy-mac-btn" id="copyMacBtn" onclick="copyMac()">Copy</button>
+            </div>
+
+            <details class="more">
+                <summary>Help &amp; device info ▾</summary>
+                <div class="more-content">
+                    <p><strong>Paused or disconnected?</strong> Your time is saved. Just reconnect to the WiFi to continue.</p>
+                    <p><strong>Smart TV or console?</strong> Register its MAC address (shown above) in the customer portal and it connects automatically.</p>
+                    <div style="margin-top:8px;">
+                        <div class="device-row">
+                            <span class="device-label">Hostname</span>
+                            <span class="device-value">$(hostname)</span>
+                        </div>
+                        <div class="device-row">
+                            <span class="device-label">IP Address</span>
+                            <span class="device-value">$(ip)</span>
+                        </div>
+                    </div>
+                </div>
+            </details>
+        </div>
+    </div>
+
+    <div class="footer">
+        Need help? Contact Reception or WhatsApp <strong>0542069352</strong>
+    </div>
+</div>
+
+<script>
+// ----- CONFIG -----
+// This page is served by the router, NOT the Laravel domain,
+// so API calls must use an absolute URL to the backend.
+const API_BASE = 'https://honneycole.oyalo.net';
+
+const inputField = document.getElementById('voucher_code');
+const connectBtn = document.getElementById('connectBtn');
+const countdownEl = document.getElementById('countdown-timer');
+
+let isSubmitting = false;
+let pollInterval = null;
+
+function resetButton() {
+    connectBtn.disabled = false;
+    connectBtn.textContent = 'Connect';
+}
+
+// Auto-uppercase and strip spaces / prefix
+if (inputField) {
+    inputField.addEventListener('input', function (e) {
+        let val = e.target.value.toUpperCase().replace(/\s+/g, '');
+        if (val.startsWith('OY-')) val = val.substring(3);
+        e.target.value = val;
+    });
+}
+
+// Submission used by the auto-connect flow
+function submitLogin() {
+    if (isSubmitting) return;
+    isSubmitting = true;
+
+    if (pollInterval) { clearInterval(pollInterval); pollInterval = null; }
+    countdownEl.classList.remove('active');
+    countdownEl.textContent = '';
+
+    connectBtn.textContent = 'Connecting...';
+    connectBtn.disabled = true;
+
+    const form = document.querySelector('form[name="login"]');
+    if (!form) { isSubmitting = false; resetButton(); return; }
+
+    let part = inputField ? inputField.value.trim().toUpperCase() : '';
+    if (part.startsWith('OY-')) part = part.substring(3);
+    const fullCode = 'OY-' + part;
+    document.getElementById('username-hidden').value = fullCode;
+    document.getElementById('password-hidden').value = fullCode;
+
+    if (typeof doLogin === 'function') {
+        doLogin(); // submits the CHAP form
+    } else {
+        form.submit();
+    }
+}
+
+// ----- AUTO-VOUCHER FLOW -----
+// Used when a code arrives via ?voucher=CODE (e.g. redirected back from the buy page).
+function startAutoFlow(rawCode) {
+    if (isSubmitting) return;
+    if (pollInterval) { clearInterval(pollInterval); pollInterval = null; }
+
+    let code = String(rawCode).trim().toUpperCase();
+    if (code.startsWith('OY-')) code = code.substring(3);
+    if (!code) return;
+
+    if (inputField) {
+        inputField.value = code;
+        inputField.dispatchEvent(new Event('input'));
+    }
+
+    const fullCode = 'OY-' + code;
+
+    connectBtn.disabled = true;
+    connectBtn.textContent = 'Setting up your access...';
+    countdownEl.classList.add('active');
+    countdownEl.textContent = 'Preparing your connection...';
+
+    let pollAttempts = 0;
+    const maxAttempts = 24; // 24 x 2.5s ≈ 60s
+
+    pollInterval = setInterval(async function () {
+        pollAttempts++;
+
+        try {
+            const res = await fetch(API_BASE + '/api/voucher/' + encodeURIComponent(fullCode) + '/status');
+
+            if (res.status === 404) {
+                clearInterval(pollInterval); pollInterval = null;
+                resetButton();
+                countdownEl.textContent = 'Voucher not recognized — check the code and try again.';
+                return;
+            }
+
+            const data = await res.json();
+
+            if (data.status === 'ready') {
+                clearInterval(pollInterval); pollInterval = null;
+                countdownEl.textContent = 'Connecting now...';
+                submitLogin();
+                return;
+            }
+
+            if (data.status === 'failed') {
+                clearInterval(pollInterval); pollInterval = null;
+                resetButton();
+                countdownEl.textContent = 'Setup failed — tap Connect to retry, or contact reception.';
+                return;
+            }
+
+            // pending — keep polling
+            countdownEl.textContent = 'Setting up your access... (' + Math.round(pollAttempts * 2.5) + 's)';
+
+        } catch (e) {
+            // network hiccup — skip this tick
+        }
+
+        if (pollAttempts >= maxAttempts) {
+            clearInterval(pollInterval); pollInterval = null;
+            resetButton();
+            countdownEl.textContent = 'Taking longer than usual — tap Connect to try now.';
+        }
+    }, 2500);
+}
+
+// Code in the URL (?voucher=CODE)
+const voucherParam = new URLSearchParams(window.location.search).get('voucher');
+if (voucherParam) startAutoFlow(voucherParam);
+
+// ----- MANUAL SUBMIT HANDLER -----
+const loginForm = document.querySelector('form[name="login"]');
+if (loginForm) {
+    loginForm.addEventListener('submit', function (e) {
+        if (isSubmitting) { e.preventDefault(); return; }
+        if (pollInterval) { clearInterval(pollInterval); pollInterval = null; }
+        countdownEl.classList.remove('active');
+        countdownEl.textContent = '';
+
+        connectBtn.textContent = 'Connecting...';
+        connectBtn.disabled = true;
+        isSubmitting = true;
+
+        let part = inputField ? inputField.value.trim().toUpperCase() : '';
+        if (part.startsWith('OY-')) part = part.substring(3);
+        const fullCode = 'OY-' + part;
+        document.getElementById('username-hidden').value = fullCode;
+        document.getElementById('password-hidden').value = fullCode;
+        // With chap-id, the inline onsubmit="doLogin()" handles submission.
+    });
+}
+
+// ----- COPY MAC (no popups) -----
+function copyMac() {
+    const btn = document.getElementById('copyMacBtn');
+    const macText = (document.getElementById('mac-address-text') || {}).innerText || '';
+
+    function done(msg) {
+        btn.textContent = msg;
+        setTimeout(function () { btn.textContent = 'Copy'; }, 1500);
+    }
+
+    if (!macText || macText === '$(mac)') { done('N/A'); return; }
+
+    function fallback() {
+        try {
+            const ta = document.createElement('textarea');
+            ta.value = macText;
+            ta.style.position = 'fixed';
+            ta.style.opacity = '0';
+            document.body.appendChild(ta);
+            ta.select();
+            document.execCommand('copy');
+            document.body.removeChild(ta);
+            done('Copied ✓');
+        } catch (e) {
+            done('Failed');
+        }
+    }
+
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(macText).then(function () { done('Copied ✓'); }).catch(fallback);
+    } else {
+        fallback();
+    }
+}
+</script>
+</body>
+</html>

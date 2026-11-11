@@ -8,6 +8,7 @@ class Location extends Model
 {
     protected $casts = [
         'subscription_email_notifications' => 'boolean',
+        'maintenance_mode' => 'boolean',
     ];
 
     protected $fillable = [
@@ -18,6 +19,8 @@ class Location extends Model
         'commission_percentage',
         'status',
         'subscription_email_notifications',
+        'maintenance_mode',
+        'maintenance_message',
     ];
 
     public function admin()
@@ -43,5 +46,10 @@ class Location extends Model
     public function payments()
     {
         return $this->hasMany(Payment::class);
+    }
+
+    public function isUnderMaintenance(): bool
+    {
+        return (bool) $this->maintenance_mode;
     }
 }

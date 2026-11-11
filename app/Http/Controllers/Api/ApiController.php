@@ -27,7 +27,7 @@ class ApiController extends Controller
         if (!is_string($routerId) || !is_string($apiToken) || $routerId === '' || $apiToken === '') {
             Log::warning('Router authentication failed: missing credentials', [
                 'ip' => $request->ip(),
-                'user_agent' => $request->userAgent()
+                'user_agent' => $request->userAgent(),
             ]);
             return null;
         }
@@ -37,7 +37,7 @@ class ApiController extends Controller
         if (!$router) {
             Log::warning('Router authentication failed: unknown router', [
                 'router_id' => $routerId,
-                'ip' => $request->ip()
+                'ip' => $request->ip(),
             ]);
             return null;
         }
@@ -45,7 +45,7 @@ class ApiController extends Controller
         if (!hash_equals($router->api_token, $apiToken)) {
             Log::warning('Router authentication failed: invalid token', [
                 'router_id' => $routerId,
-                'ip' => $request->ip()
+                'ip' => $request->ip(),
             ]);
             return null;
         }
@@ -54,68 +54,97 @@ class ApiController extends Controller
     }
 
     public function heartbeat(Request $request)
-{
-    // Authenticate and identify the exact router from X-Router-ID + X-Router-Token
-    $router = $this->authenticateRouter($request);
+    {
+        $router = $this->authenticateRouter($request);
 
-    if (!$router) {
+        if (!$router) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Unauthorized router',
+            ], 401);
+        }
+
+        $data = $request->validate([
+            'model' => ['nullable', 'string', 'max:100'],
+            'identity' => ['nullable', 'string', 'max:100'],
+            'version' => ['nullable', 'string', 'max:50'],
+            'board' => ['nullable', 'string', 'max:100'],
+            'uptime' => ['nullable', 'string', 'max:100'],
+        ]);
+
+        $wasOffline = $router->status !== 'online';
+
+        $router->update([
+            'status' => 'online',
+            'last_heartbeat' => now(),
+            'name' => $data['identity'] ?? $router->name,
+            'model' => $data['model'] ?? $data['board'] ?? $router->model,
+        ]);
+
+        if ($wasOffline) {
+            $this->activityLogger->record(
+                'router.online',
+                "Router {$router->router_id} checked in and is online.",
+                null,
+                $request->ip()
+            );
+        }
+
         return response()->json([
-            'status' => 'error',
-            'message' => 'Unauthorized router',
-        ], 401);
+            'status' => 'success',
+            'message' => 'Heartbeat acknowledged',
+            'router_id' => $router->router_id,
+            'router_status' => $router->status,
+            'last_heartbeat' => $router->last_heartbeat?->toIso8601String(),
+            'timestamp' => now()->toIso8601String(),
+        ]);
     }
-
-    // Validate heartbeat data
-    $data = $request->validate([
-        'model' => ['nullable', 'string', 'max:100'],
-        'identity' => ['nullable', 'string', 'max:100'],
-        'version' => ['nullable', 'string', 'max:50'],
-        'board' => ['nullable', 'string', 'max:100'],
-        'uptime' => ['nullable', 'string', 'max:100'],
-    ]);
-
-    $wasOffline = $router->status !== 'online';
-
-    // Update THIS particular router
-    $router->update([
-        'status' => 'online',
-        'last_heartbeat' => now(),
-        'name' => $data['identity'] ?? $router->name,
-        'model' => $data['model'] ?? $data['board'] ?? $router->model,
-    ]);
-
-    if ($wasOffline) {
-        $this->activityLogger->record(
-            'router.online',
-            "Router {$router->router_id} checked in and is online.",
-            null,
-            $request->ip()
-        );
-    }
-
-    return response()->json([
-        'status' => 'success',
-        'message' => 'Heartbeat acknowledged',
-        'router_id' => $router->router_id,
-        'router_status' => $router->status,
-        'last_heartbeat' => $router->last_heartbeat?->toIso8601String(),
-        'timestamp' => now()->toIso8601String(),
-    ]);
-}
 
     public function fetchCommands(Request $request)
     {
         $router = $this->authenticateRouter($request);
         if (!$router) {
+            Log::warning('Router fetchCommands: unauthorized router', [
+                'ip' => $request->ip(),
+                'router_id_header' => $request->header('X-Router-ID'),
+                'router_token_header' => $request->header('X-Router-Token'),
+                'all_headers' => $request->headers->all(),
+                'query' => $request->query(),
+            ]);
             return response()->json(['error' => 'Unauthorized router'], 401);
         }
 
         $commands = $router->pendingCommands()->oldest()->limit(100)->get();
 
+        Log::debug('Router fetchCommands', [
+            'router_id' => $router->router_id,
+            'router_db_id' => $router->id,
+            'pending_count' => $commands->count(),
+            'types' => $commands->pluck('command_type')->unique()->values()->all(),
+            'ip' => $request->ip(),
+        ]);
+
+        // REBOOT is fire-and-forget: /system reboot restarts the router
+        // immediately, so it can never send an ACK back. Mark them completed
+        // now to prevent them from being re-fetched (infinite reboot loop).
+        $rebootCommands = $commands->where('command_type', 'REBOOT');
+        foreach ($rebootCommands as $cmd) {
+            $cmd->update(['status' => 'completed', 'executed_at' => now()]);
+            $this->activityLogger->record(
+                'router.command_acknowledged',
+                "Router {$router->router_id} marked reboot command {$cmd->id} as completed (fire-and-forget reboot).",
+                null,
+                $request->ip()
+            );
+        }
+
+        // Only non-reboot commands go into the script with ACK sections.
+        $regularCommands = $commands->where('command_type', '!=', 'REBOOT');
+
         $baseUrl = rtrim($request->root(), '/');
         $script = "# OYALO SYNC\n";
 
-        foreach ($commands as $command) {
+        foreach ($regularCommands as $command) {
             $cmdScript = trim($command->script);
             if ($cmdScript === '') {
                 continue;
@@ -124,31 +153,61 @@ class ApiController extends Controller
             $script .= "\n# ID {$command->id}\n" . $cmdScript . "\n";
         }
 
-        if ($commands->isNotEmpty()) {
+        // Append reboot commands (just /system reboot, no ACK expected).
+        foreach ($rebootCommands as $command) {
+            $script .= "\n# ID {$command->id}\n" . trim($command->script) . "\n";
+        }
+
+        if ($regularCommands->isNotEmpty()) {
             $script .= "\n# ACKNOWLEDGMENTS\n";
-            foreach ($commands as $command) {
-                $script .= "# ==========================================\n"
-                    . "# Oyalo ACK ID {$command->id}\n"
-                    . "# ==========================================\n"
-                    . ":log info \"OYALO ACK ID {$command->id} START\"\n"
-                    . ":local result{$command->id} [/tool fetch \\\n"
-                    . "    url=\"{$baseUrl}/api/router/commands/{$command->id}/ack\" \\\n"
-                    . "    http-method=post \\\n"
-                    . "    http-header-field=\"X-Router-ID: {$router->router_id},X-Router-Token: {$router->api_token},Content-Type: application/x-www-form-urlencoded\" \\\n"
-                    . "    http-data=\"status=completed\" \\\n"
-                    . "    output=user \\\n"
-                    . "    as-value \\\n"
-                    . "    check-certificate=no]\n"
-                    . ":log info \"OYALO ACK ID {$command->id} DONE\"\n"
-                    . ":log info (\"STATUS = \".\$result{$command->id}->\"status\")\n"
-                    . ":log info (\"RESPONSE = \".\$result{$command->id}->\"data\")\n"
-                    . ":log info \"OYALO ACK ID {$command->id} END\"\n\n";
+            foreach ($regularCommands as $command) {
+                $script .= $this->buildAckBlock($command, $router, $baseUrl);
             }
         }
 
         return response(trim($script), 200)
             ->header('Content-Type', 'text/plain; charset=UTF-8')
             ->header('Cache-Control', 'no-store');
+    }
+
+    /**
+     * Build the ACK block for a single command.
+     *
+     * IMPORTANT: the fetch is emitted as ONE line. Multi-line backslash
+     * continuations are fragile in RouterOS (trailing whitespace, CRLF line
+     * endings, escaped backslashes, and Windows-edited .rsc files all break
+     * them). Single-line avoids the entire class of problems.
+     */
+protected function buildAckBlock(RouterCommand $command, Router $router, string $baseUrl): string
+{
+    $id       = (int) $command->id;
+    $ackUrl   = "{$baseUrl}/api/router/commands/{$id}/ack";
+    $routerId = $this->escapeRosHeader($router->router_id);
+    $token    = $this->escapeRosHeader($router->api_token);
+
+    // All headers must be in ONE http-header-field string, comma-separated.
+    $headers = "X-Router-ID: {$routerId},X-Router-Token: {$token},Content-Type: application/x-www-form-urlencoded";
+
+    return "\n# ==========================================\n"
+        . "# Oyalo ACK ID {$id}\n"
+        . "# ==========================================\n"
+        . ":log info \"OYALO ACK ID {$id} START\"\n"
+        . ":do {\n"
+        . "    /tool fetch url=\"{$ackUrl}\" http-method=post http-header-field=\"{$headers}\" http-data=\"status=completed\" output=none check-certificate=no\n"
+        . "    :log info \"OYALO ACK ID {$id} DONE\"\n"
+        . "} on-error={\n"
+        . "    :log error \"OYALO ACK ID {$id} FETCH_FAILED\"\n"
+        . "}\n"
+        . ":log info \"OYALO ACK ID {$id} END\"\n";
+}
+
+    /**
+     * Strip characters that would terminate/inject into the generated
+     * RouterOS string literals (quotes, backslashes, CR/LF).
+     */
+    protected function escapeRosHeader(?string $value): string
+    {
+        return str_replace(['"', '\\', "\r", "\n"], '', (string) $value);
     }
 
     public function acknowledgeCommand(Request $request, int $id)
@@ -195,7 +254,7 @@ class ApiController extends Controller
 
         return response()->json([
             'status' => 'success',
-            'message' => "Command {$id} status updated to {$status}"
+            'message' => "Command {$id} status updated to {$status}",
         ]);
     }
 

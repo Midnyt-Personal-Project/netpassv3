@@ -134,6 +134,9 @@ class RouterCommand extends Model
                 return '/ip hotspot user remove [find where name="' . $username . '"]' . "\n"
                     . '/ip hotspot active remove [find where user="' . $username . '"]';
 
+            case 'REBOOT':
+                return '/system reboot';
+
             default:
                 return '';
         }

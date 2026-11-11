@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="420" height="320" viewBox="0 0 420 320" role="img" aria-label="Under maintenance">
+  <defs>
+    <linearGradient id="routerGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#4f46e5"/>
+      <stop offset="100%" stop-color="#312e81"/>
+    </linearGradient>
+  </defs>
+  <rect width="420" height="320" fill="#0b1021"/>
+  <circle cx="210" cy="152" r="128" fill="none" stroke="#1e293b" stroke-width="2"/>
+  <path d="M 84 174 Q 150 174 210 142" fill="none" stroke="#4f46e5" stroke-width="3" stroke-linecap="round" opacity="0.65"/>
+  <path d="M 84 196 Q 150 196 210 122" fill="none" stroke="#4f46e5" stroke-width="3" stroke-linecap="round" opacity="0.45"/>
+  <path d="M 336 174 Q 270 174 210 142" fill="none" stroke="#4f46e5" stroke-width="3" stroke-linecap="round" opacity="0.65"/>
+  <path d="M 336 196 Q 270 196 210 122" fill="none" stroke="#4f46e5" stroke-width="3" stroke-linecap="round" opacity="0.45"/>
+  <rect x="160" y="192" width="100" height="56" rx="12" fill="url(#routerGrad)"/>
+  <rect x="176" y="207" width="68" height="10" rx="4" fill="#0b1021" opacity="0.55"/>
+  <rect x="176" y="222" width="48" height="8" rx="4" fill="#0b1021" opacity="0.45"/>
+  <line x1="180" y1="192" x2="170" y2="157" stroke="#4f46e5" stroke-width="5" stroke-linecap="round"/>
+  <line x1="240" y1="192" x2="250" y2="157" stroke="#4f46e5" stroke-width="5" stroke-linecap="round"/>
+  <circle cx="210" cy="88" r="26" fill="none" stroke="#334155" stroke-width="3"/>
+  <circle cx="210" cy="88" r="3" fill="#4f46e5"/>
+  <line x1="210" y1="88" x2="210" y2="66" stroke="#94a3b8" stroke-width="3" stroke-linecap="round"/>
+  <line x1="210" y1="88" x2="232" y2="88" stroke="#94a3b8" stroke-width="3" stroke-linecap="round"/>
+</svg>

@@ -11,6 +11,11 @@ class Device extends Model
         'mac_address',
         'name',
         'status',
+        'last_seen',
+    ];
+
+    protected $casts = [
+        'last_seen' => 'datetime',
     ];
 
     public function customer()

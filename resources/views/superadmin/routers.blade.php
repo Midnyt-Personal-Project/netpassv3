@@ -37,6 +37,7 @@
                         <th class="px-6 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Last Heartbeat</th>
                         <th class="px-6 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Router ID</th>
                         <th class="px-6 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Token</th>
+                        <th class="px-6 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Actions</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-gray-100">
@@ -108,10 +109,39 @@
                                 </button>
                             </div>
                         </td>
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            <form method="POST" action="{{ route('admin.routers.reboot', $r->id) }}" style="display:inline"
+                                onsubmit="return confirm('Reboot router {{ $r->router_id }}? All clients will lose internet briefly.')">
+                                @csrf
+                                <button type="submit"
+                                    class="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-amber-50 text-amber-700 border border-amber-200/50 hover:bg-amber-100 transition">
+                                    <i class="fas fa-power-off text-[10px]"></i> Reboot
+                                </button>
+                            </form>
+
+                            @php
+                                $location = $r->location;
+                                $underMaintenance = (bool) ($location->maintenance_mode ?? false);
+                                $confirmMsg = $underMaintenance
+                                    ? 'Take ' . $location->name . ' out of maintenance mode? Customers will be able to buy again.'
+                                    : 'Set maintenance mode for ' . $location->name . '? Customers won\'t be able to buy vouchers.';
+                            @endphp
+                            <form method="POST" action="{{ route('admin.routers.maintenance', $r->id) }}" style="display:inline"
+                                onsubmit="return confirm('{{ addslashes($confirmMsg) }}')">
+                                @csrf
+                                <button type="submit"
+                                    class="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg {{ $underMaintenance ? 'bg-emerald-50 text-emerald-700 border border-emerald-200/50 hover:bg-emerald-100' : 'bg-rose-50 text-rose-700 border border-rose-200/50 hover:bg-rose-100' }} transition">
+                                    <i class="fas {{ $underMaintenance ? 'fa-undo' : 'fa-ban' }} text-[10px]"></i> {{ $underMaintenance ? 'Back Online' : 'Maintenance' }}
+                                </button>
+                                <span class="px-2 py-0.5 rounded text-[9px] font-bold border {{ $underMaintenance ? 'bg-emerald-900/50 text-emerald-400 border-emerald-700' : 'bg-rose-900/50 text-rose-400 border-rose-700' }}">
+                                    {{ $underMaintenance ? 'MAINTENANCE ON' : 'OPEN' }}
+                                </span>
+                            </form>
+                        </td>
                     </tr>
                     @empty
                     <tr>
-                        <td colspan="7" class="px-6 py-12 text-center">
+                        <td colspan="8" class="px-6 py-12 text-center">
                             <div class="flex flex-col items-center gap-3">
                                 <div class="w-16 h-16  rounded-full flex items-center justify-center">
                                     <i class="fas fa-inbox text-2xl text-gray-400"></i>

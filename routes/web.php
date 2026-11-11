@@ -45,6 +45,8 @@ Route::prefix('admin')->middleware(['auth', 'role:admin,super_admin'])->group(fu
     Route::put('packages/{package}', [AdminController::class, 'updatePackage'])->name('admin.packages.update');
     Route::get('devices', [AdminController::class, 'showDevices'])->name('admin.devices');
     Route::post('devices/{id}/toggle', [AdminController::class, 'toggleDeviceStatus'])->name('admin.devices.toggle');
+    Route::post('routers/{router}/reboot', [AdminController::class, 'rebootRouter'])->name('admin.routers.reboot');
+    Route::post('routers/{router}/maintenance', [AdminController::class, 'toggleRouterLocationMaintenance'])->name('admin.routers.maintenance');
     Route::get('announcements', [AdminController::class, 'showAnnouncements'])->name('admin.announcements');
     Route::get('logs', [AdminController::class, 'showLogs'])->name('admin.logs');
     Route::post('announcements', [AdminController::class, 'createAnnouncement'])->name('admin.announcements.create');

@@ -157,4 +157,15 @@ class MikroTikService
             'status' => 'pending'
         ]);
     }
+
+    /** Queue a router reboot. */
+    public function queueReboot(Router $router): RouterCommand
+    {
+        return RouterCommand::create([
+            'router_id' => $router->id,
+            'command_type' => 'REBOOT',
+            'payload' => [],
+            'status' => 'pending'
+        ]);
+    }
 }

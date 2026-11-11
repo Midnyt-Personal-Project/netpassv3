@@ -222,6 +222,54 @@ class AdminController extends Controller
         return view('admin.devices', compact('devices'));
     }
 
+    /** Reboot a router by queuing a /system reboot command. */
+    public function rebootRouter($router, MikroTikService $mikrotik)
+    {
+        $router = \App\Models\Router::findOrFail($router);
+        $user = Auth::user();
+        abort_unless($user->isSuperAdmin() || $router->location->admin_id === $user->id, 403, 'You cannot reboot this router.');
+
+        try {
+            $command = $mikrotik->queueReboot($router);
+
+            app(ActivityLogger::class)->record(
+                'router.reboot_queued',
+                "Reboot command #{$command->id} queued for router {$router->router_id} at {$router->location->name}."
+            );
+
+            return back()->with('success', 'Reboot command queued for router ' . $router->router_id . '. It will restart on the router\'s next sync.');
+        } catch (\Throwable $e) {
+            app(ActivityLogger::class)->record(
+                'router.reboot_failed',
+                "Reboot failed for router {$router->router_id}: " . $e->getMessage()
+            );
+
+            return back()->with('error', 'Failed to queue reboot command: ' . $e->getMessage());
+        }
+    }
+
+    /** Toggle maintenance mode for a router's location from the routers page. */
+    public function toggleRouterLocationMaintenance($router, MikroTikService $mikrotik)
+    {
+        $router = \App\Models\Router::findOrFail($router);
+        $user = Auth::user();
+        abort_unless($user->isSuperAdmin() || $router->location->admin_id === $user->id, 403, 'You cannot manage this router\'s location.');
+
+        $location = $router->location;
+        $location->update(['maintenance_mode' => ! $location->maintenance_mode]);
+
+        $state = $location->maintenance_mode ? 'enabled' : 'disabled';
+
+        app(ActivityLogger::class)->record(
+            'location.maintenance_toggled',
+            "Maintenance mode {$state} for location {$location->name} (router {$router->router_id}) by " . $user->name . '.'
+        );
+
+        // Redirect to the customer portal so the admin can immediately verify the maintenance page
+        return redirect()->route('customer.portal', ['slug' => $location->slug])
+            ->with('success', "Maintenance mode {$state} for {$location->name}.");
+    }
+
     /**
      * Toggle device status (active/blocked) and sync with router.
      */
@@ -231,7 +279,7 @@ class AdminController extends Controller
         $this->ensureManagedLocation($device->customer->location_id);
 
         $newStatus = $device->status === 'active' ? 'blocked' : 'active';
-        $device->update(['status' => $newStatus]);
+        $device->update(['status' => $newStatus, 'last_seen' => $newStatus === 'active' ? now() : $device->last_seen]);
 
         foreach ($device->customer->location->routers()->get() as $router) {
             if ($newStatus === 'blocked') {
@@ -716,7 +764,7 @@ class AdminController extends Controller
 
         $expiryDate = $customer->expires_at ? $customer->expires_at->format('d M Y H:i') : 'Unlimited';
         $voucher = $customer->voucher_code ?: $customer->username;
-        $message = "Welcome to Oyalo WiFi!\n\nYour WiFi voucher: {$voucher}\nUse this same voucher in both MikroTik username and password fields.\nPackage: {$packageName}\nExpires: {$expiryDate}\n\nEnjoy fast internet!";
+        $message = "Your WiFi voucher: {$voucher}\nPackage: {$packageName}\nExpires: {$expiryDate}";
 
         if (blank($apiKey)) {
             Log::error('[SMS] Not sent — ARKESEL_SMS_API_KEY is not configured in .env.', [

@@ -9,6 +9,12 @@
 :log info "Oyalo: downloading sync file..."
 :local gotFile false
 
+
+
+
+:local routerId "RTR-238605"; :local routerToken "oyalo_26lWGsL0vqStZ2YEOQu9PKaznlhZcGCQq1tj5mKqrZBpQ4yx"; :local headers ("X-Router-ID: ".$routerId.",X-Router-Token: ".$routerToken); /tool fetch url="https://honneycole.oyalo.net/api/router/commands" http-method=get http-header-field=$headers output=none
+
+
 # Method 1: straight to file
 :do {
     :local r [/tool fetch url=($apiBase."/commands") \

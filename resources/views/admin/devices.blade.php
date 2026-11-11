@@ -21,6 +21,7 @@
                         <th class="pb-3">Location</th>
                         <th class="pb-3">Customer Phone</th>
                         <th class="pb-3">Status</th>
+                        <th class="pb-3">Last Seen</th>
                         <th class="pb-3">Action</th>
                     </tr>
                 </thead>
@@ -42,6 +43,9 @@
                                     <span class="inline-block px-2.5 py-0.5 rounded-full text-xs bg-rose-500/10 text-rose-400">Blocked</span>
                                 @endif
                             </td>
+                            <td class="py-3 font-mono text-xs text-slate-400">
+                                {{ $dev->last_seen?->diffForHumans() ?? 'Never' }}
+                            </td>
                             <td class="py-3">
                                 <form action="{{ route('admin.devices.toggle', $dev->id) }}" method="POST" class="inline">
                                     @csrf
@@ -57,7 +61,7 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="7" class="py-12 text-center text-slate-500 text-sm">No smart devices registered yet by customers.</td>
+                            <td colspan="8" class="py-12 text-center text-slate-500 text-sm">No smart devices registered yet by customers.</td>
                         </tr>
                     @endforelse
                 </tbody>
